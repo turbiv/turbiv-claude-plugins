@@ -47,6 +47,7 @@ in the `show` output.
 | Set the next step | `next_step` (at most 200), and `next_step_edited_at` = now |
 | Add a note | `notes`: the old text plus the new line |
 | Add a link | `links`: the old array plus `{label, url}`; only `http` or `https` |
+| Drop ("won't do", "I gave up on X") | `status: "dropped"`, `status_changed_at` = now |
 | Archive | `status: "archived"`, `status_changed_at` = now |
 | Add an idea or a card | `action: "set"` a new document, see below |
 | Merge A into B | see below |

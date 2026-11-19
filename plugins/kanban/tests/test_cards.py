@@ -182,6 +182,23 @@ class ExistingCardTest(ApplyBase):
             self.assertEqual(c["status"], "doing")
             self.assertTrue(c["log"][0]["text"].startswith("Reopened: "))
 
+    def test_wont_do_card_is_never_reopened(self):
+        # The owner dropped it. Newer work is logged, but the status is the owner's.
+        self.existing = {"sauna-ab12": card(status="dropped", status_changed_at="2026-11-10T00:00:00Z")}
+        self.apply(self.one())
+        c = self.doc("cards/sauna-ab12")
+        self.assertNotIn("status", c)
+        self.assertNotIn("status_changed_at", c)
+        self.assertEqual(c["log"][0]["text"], "Did more.")
+        self.assertEqual(c["last_touched"], "2026-11-18T10:00:00Z")
+
+    def test_new_card_cannot_start_as_wont_do(self):
+        self.existing = {}
+        w = self.apply({"cards": [{"id": None, "title": "T", "status": "dropped",
+                                   "sessions": [{"id": "aaaa1111-x", "log": "x"}]}],
+                        "skip": self.all_skipped("bbbb2222-x")})
+        self.assertEqual(self.doc([k for k in w if k.startswith("cards/")][0])["status"], "doing")
+
     def test_owner_edit_of_next_step_wins_until_newer_work(self):
         self.existing = {"sauna-ab12": card(next_step="Mine", next_step_edited_at="2026-11-18T12:00:00Z")}
         self.apply(self.one())

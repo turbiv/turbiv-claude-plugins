@@ -73,6 +73,9 @@ Write for the user who comes back after three weeks and remembers nothing.
 - `status` for a new card only: `doing` when the work is active or was left in the middle; `done` when
   it is clearly finished; `idea` when it was only talked about; `todo` when it is planned but not begun.
   You cannot set the status of a card that is already on the board; the tool applies the status rules.
+  A card marked "Won't do" (`dropped`) in the card list was given up by the user. Still attach a session
+  that belongs to it, and say in `summary` that work went on after the card was dropped. The tool keeps
+  it dropped; the user decides whether to open it again.
 
 Use plain words. No praise, no filler, no session ids in the text.
 

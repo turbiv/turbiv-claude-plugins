@@ -10,7 +10,7 @@ from . import cache, cards, collect
 from .store import Data
 from .transcript import cut
 
-STATUS_ORDER = ["doing", "todo", "idea", "done", "archived"]
+STATUS_ORDER = ["doing", "todo", "idea", "done", "dropped", "archived"]
 INLINE_MAX = 20000   # characters of digest that `collect` prints itself
 NEED_SETUP = "This board is not set up yet. Run /kanban:setup first.\n"
 
@@ -71,7 +71,7 @@ def card_index(cards_by_id, now, full=True):
                                            " · " + repos if repos else "", age, stale))
         if c.get("summary"):
             lines.append("  stands: " + cut(c["summary"], 220 if full else 160))
-        if c.get("next_step") and c.get("status") not in ("done", "archived"):
+        if c.get("next_step") and c.get("status") not in ("done", "dropped", "archived"):
             lines.append("  next: " + cut(c["next_step"], 140))
         if full:
             titles = [cut(str(s.get("title") or ""), 50) for s in (c.get("sessions") or [])[:3] if isinstance(s, dict)]
@@ -134,9 +134,10 @@ def cmd_collect(a, data, out):
     n = len(digest["sessions"])
     left = ", ".join("%s %d" % (k.replace("_", " "), v) for k, v in sorted(digest["skipped"].items()) if v)
     if n == 0:
-        cache.finish_nothing_new(data)
-        out.write("Nothing new. No session needs a card%s. The sync is closed; do not run apply or commit.\n"
-                  % (" (left out: %s)" % left if left else ""))
+        cache.finish_nothing_new(data, now)
+        out.write("Nothing new. No session needs a card%s. The local copy now matches the board (%d cards). "
+                  "The sync is closed; do not run apply or commit.\n"
+                  % (" (left out: %s)" % left if left else "", len(existing)))
         return 0
     (data.work / "cards.md").write_text(card_index(existing, now), encoding="utf-8")
     unparsed = [s for s in digest["sessions"] if s["unparsed"]]

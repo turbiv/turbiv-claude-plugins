@@ -46,6 +46,7 @@ def samples():
         card(5, "Sample: idea with no repo", "idea", 60, repos=[], summary="", next_step=""),
         card(6, "Sample: finished thing", "done", 5),
         card(7, "Sample: archived thing", "archived", 90),
+        card(8, "Sample: dropped thing", "dropped", 50),
     ]
 
 

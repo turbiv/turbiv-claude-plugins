@@ -114,8 +114,14 @@ def _stamp(data):
     stamp.write_text(iso(datetime.now(timezone.utc)) + "\n", encoding="utf-8")
 
 
-def finish_nothing_new(data):
-    """A sync found nothing to place: close it without touching the cards."""
+def finish_nothing_new(data, now):
+    """A sync found no session to place: close it without writing to the board.
+
+    The local copy is still rebuilt from the board that was just saved, so a
+    card the owner moved or edited on the page reaches the session-start hook.
+    """
+    cards, _, _ = load_db(data)
+    rebuild(data, cards, now)
     _archive_processing(data)
     _stamp(data)
 

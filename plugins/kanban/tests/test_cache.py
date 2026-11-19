@@ -34,6 +34,7 @@ class ContextTest(unittest.TestCase):
             "b": card("Doing old", "doing", "2026-11-01T10:00:00Z"),
             "c": card("Doing new", "doing", "2026-11-18T10:00:00Z"),
             "d": card("Done thing", "done"), "e": card("Archived thing", "archived"), "f": card("Idea thing", "idea"),
+            "h": card("Dropped thing", "dropped"),
             "g": card("Elsewhere", folders=["/other"]),
         }
         for i in range(5):
@@ -41,7 +42,7 @@ class ContextTest(unittest.TestCase):
         text = cache.render_context(cards, "/work/proj", NOW)
         self.assertLess(text.index("Doing new"), text.index("Doing old"))
         self.assertLess(text.index("Doing old"), text.index("Todo new"))
-        for absent in ("Done thing", "Archived thing", "Idea thing", "Elsewhere"):
+        for absent in ("Done thing", "Archived thing", "Idea thing", "Elsewhere", "Dropped thing"):
             self.assertNotIn(absent, text)
         self.assertEqual(text.count("\n- "), 5)
         self.assertIn("3 more open cards", text)
@@ -188,6 +189,17 @@ class CliTest(unittest.TestCase):
         out = self.tool("collect", "--data", d, "--projects", str(self.projects), "--scan-days", "100000")
         self.assertIn("Nothing new", out)
         self.assertIn("apply", self.tool("commit", "--data", d, expect=2))
+        # Nothing new, but the owner changed a card on the page: the local copy follows the board.
+        self.tool("begin", "--data", d)
+        Data(self.d).write_json("db/meta/board.json", {"title": "Kanban"})
+        Data(self.d).write_json("db/meta/synced.json", json.loads(synced))
+        Data(self.d).write_json("db/cards/sauna-zzzz.json", card("Sauna", status="dropped"))
+        Data(self.d).write_json("db/cards/other-yyyy.json", card("Moved by hand", status="todo"))
+        self.tool("collect", "--data", d, "--projects", str(self.projects), "--scan-days", "100000")
+        shown = self.tool("show", "--data", d)
+        self.assertIn("Moved by hand", shown)
+        self.assertNotIn("Sauna", shown)          # a won't-do card is not an open card
+        self.assertIn("Sauna", self.tool("show", "--data", d, "--all"))
 
     def test_apply_bad_json(self):
         d = str(self.d)

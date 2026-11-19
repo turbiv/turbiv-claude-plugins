@@ -20,6 +20,8 @@ SYNCED_DAYS = 90
 BATCH_MAX = 50                # ArtifactData takes at most 50 writes in one batch
 NEW_STATUSES = ("idea", "todo", "doing", "done")
 OPEN_AGAIN = ("done", "archived")
+# "dropped" (Won't do) is only ever set by the owner, and sync never changes it:
+# newer work on such a card is logged, but the card stays where the owner put it.
 ID_CHARS = "abcdefghijkmnpqrstuvwxyz23456789"
 
 SECRETS = [re.compile(p) for p in (

@@ -86,7 +86,8 @@ h1 { font-family: var(--font-head); font-size: 24px; font-weight: 600; margin: 0
 .btn:hover { border-color: var(--muted); }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .btn.danger { color: var(--danger); }
-.btn[aria-pressed="true"] { background: var(--stale-soft); border-color: var(--stale); color: var(--stale); }
+.btn[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+#stale-toggle[aria-pressed="true"] { background: var(--stale-soft); border-color: var(--stale); color: var(--stale); }
 .btn.small { padding: 3px 9px; font-size: 12.5px; }
 .btn:disabled { opacity: .5; cursor: default; }
 
@@ -102,6 +103,7 @@ h1 { font-family: var(--font-head); font-size: 24px; font-weight: 600; margin: 0
 
 /* Columns */
 .cols { display: grid; grid-template-columns: repeat(var(--ncols, 4), minmax(0, 1fr)); gap: 12px; align-items: start; }
+.col.closed { opacity: .82; }
 .col { background: var(--surface-2); border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 120px; }
 .col.over { outline: 2px dashed var(--accent); outline-offset: -2px; }
 .col h2 {
@@ -205,7 +207,7 @@ a { color: var(--accent); }
     <div class="tools">
       <input class="search" id="search" type="search" placeholder="Search cards" aria-label="Search cards">
       <button class="btn" id="stale-toggle" type="button" aria-pressed="false">Stale</button>
-      <button class="btn" id="archived-toggle" type="button" aria-pressed="false">Archived</button>
+      <button class="btn" id="archived-toggle" type="button" aria-pressed="false" title="Show the Won't do and Archived columns">Closed</button>
       <button class="btn primary" id="add-btn" type="button" hidden>+ Add card</button>
     </div>
   </div>
@@ -232,14 +234,17 @@ a { color: var(--accent); }
 <script>
 (function () {
   "use strict";
-  var PAGE_VERSION = 1;
+  var PAGE_VERSION = 2;
   var COLUMNS = [
     { key: "idea", label: "Ideas", empty: "No ideas parked here." },
     { key: "todo", label: "Todo", empty: "Nothing is queued." },
     { key: "doing", label: "Doing", empty: "Nothing is in progress." },
     { key: "done", label: "Done", empty: "Nothing is finished yet." },
-    { key: "archived", label: "Archived", empty: "The archive is empty." }
+    { key: "dropped", label: "Won't do", empty: "Nothing was dropped.", closed: true },
+    { key: "archived", label: "Archived", empty: "The archive is empty.", closed: true }
   ];
+  // Won't do and Archived are closed: hidden until the "Closed" switch is on.
+  function isClosed(status) { return status === "dropped" || status === "archived"; }
   var DAY = 86400000;
 
   var S = {
@@ -338,7 +343,7 @@ a { color: var(--accent); }
   function visible() {
     var q = S.query.trim().toLowerCase();
     return S.cards.filter(function (c) {
-      if (c.status === "archived" && !S.showArchived) return false;
+      if (isClosed(c.status) && !S.showArchived) return false;
       if (S.repo === "\u0000none" ? arr(c.repos).length : (S.repo && arr(c.repos).indexOf(S.repo) < 0)) return false;
       if (S.staleOnly && !staleness(c)) return false;
       if (q) {
@@ -377,7 +382,7 @@ a { color: var(--accent); }
     st.hidden = true; cols.hidden = false; el("tabs").hidden = false;
     renderChips();
     var list = visible();
-    var shown = COLUMNS.filter(function (c) { return c.key !== "archived" || S.showArchived; });
+    var shown = COLUMNS.filter(function (c) { return !c.closed || S.showArchived; });
     if (!shown.some(function (c) { return c.key === S.tab; })) S.tab = "doing";
     cols.style.setProperty("--ncols", shown.length);
     var tabs = el("tabs"); tabs.replaceChildren();
@@ -408,7 +413,7 @@ a { color: var(--accent); }
   function renderChips() {
     var counts = {}, none = 0, total = 0;
     S.cards.forEach(function (c) {
-      if (c.status === "archived" && !S.showArchived) return;
+      if (isClosed(c.status) && !S.showArchived) return;
       total++;
       var r = arr(c.repos);
       if (!r.length) none++;
@@ -428,7 +433,7 @@ a { color: var(--accent); }
   }
 
   function renderColumn(col, items) {
-    var node = h("section", { class: "col" + (S.tab === col.key ? " active" : ""), "data-col": col.key, "aria-label": col.label },
+    var node = h("section", { class: "col" + (S.tab === col.key ? " active" : "") + (col.closed ? " closed" : ""), "data-col": col.key, "aria-label": col.label },
       [h("h2", null, [col.label, h("span", { class: "n", text: String(items.length) })])]);
     if (!items.length) node.appendChild(h("div", { class: "empty", text: col.empty }));
     items.forEach(function (c) { node.appendChild(renderCard(c)); });
@@ -467,7 +472,7 @@ a { color: var(--accent); }
     }, [
       h("span", { class: "t" }, [h("span", { text: str(c.title) || "Untitled" }), c.is_new ? h("span", { class: "badge", text: "NEW" }) : null]),
       str(c.summary) ? h("span", { class: "s", text: c.summary }) : null,
-      str(c.next_step) && c.status !== "done" && c.status !== "archived"
+      str(c.next_step) && c.status !== "done" && !isClosed(c.status)
         ? h("span", { class: "nx" }, [h("b", { text: "Next: " }), c.next_step]) : null,
       h("span", { class: "f" }, [
         h("span", { class: "repos" }, arr(c.repos).slice(0, 3).map(function (r) { return h("span", { class: "repo", text: str(r) }); })),

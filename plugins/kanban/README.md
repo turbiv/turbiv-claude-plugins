@@ -10,13 +10,16 @@ current: a small hook notes each session, and a sync turns the sessions into car
 
 - **A board** with four columns: Ideas, Todo, Doing, Done. One card is one lasting work stream, such as
   "Sauna dashboard". Small steps are lines in the card's history.
+- **Two ways to close a card:** Done (finished) and Won't do (given up). Won't do and Archived cards are
+  hidden until you turn on the "Closed" switch.
 - **On each card:** where it stands, the next step, what was done lately, the repos it touched, links,
   and the Claude sessions behind it (with a button that copies `claude --resume <id>`).
 - **Stale marks:** a Todo or Doing card is marked after 14 days without work, and marked cold after 30.
 - **A repo filter**, a search, and a "Stale" switch.
 - **Editing on the page:** drag a card to another column, edit its title, next step and notes, add a
-  card. What you set by hand stays: sync changes a status only when there is newer work on the card, and
-  never moves a card to Done.
+  card. What you set by hand stays: sync changes a status only when there is newer work on the card,
+  never moves a card to Done, and never touches a Won't do card. Claude learns of your changes at the
+  next sync: from then on a closed card is no longer in the context it gets at session start.
 - **Context at session start:** when you start Claude in a project, Claude already knows the open cards
   of that project.
 

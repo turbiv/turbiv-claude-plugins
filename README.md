@@ -10,6 +10,7 @@ plugins from it.
 |---|---|---|
 | [flow](plugins/flow/README.md) | Takes a goal to an approved, binding spec, with one decision table and an always-on validator | `/flow:start <goal>`, then `/flow:status` to resume. Each stage also runs alone |
 | [context-band](plugins/context-band/README.md) | Band above the prompt in the Claude apps: context fill, plan usage (5h/7d) or USD, and Spotify's current track | Nothing to run: it shows once installed. Apps only, not the terminal |
+| [kanban](plugins/kanban/README.md) | A kanban board of your work streams that updates itself from your Claude sessions. Each card says where you left off and what comes next | `/kanban:setup` once, then `/kanban:sync` to update and `/kanban:board` to ask or change |
 
 Each plugin's README says what it needs and how to use it. Read it before installing.
 
@@ -25,6 +26,10 @@ Then install the plugin you want:
 
 ```text
 /plugin install flow@turbiv-claude-plugins
+```
+
+```text
+/plugin install kanban@turbiv-claude-plugins
 ```
 
 Start a new Claude Code session, and the plugin's commands and hooks are on. To see, turn off or remove plugins, run

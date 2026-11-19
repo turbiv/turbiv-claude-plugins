@@ -11,6 +11,7 @@ from .store import Data
 from .transcript import cut
 
 STATUS_ORDER = ["doing", "todo", "idea", "done", "archived"]
+INLINE_MAX = 20000   # characters of digest that `collect` prints itself
 NEED_SETUP = "This board is not set up yet. Run /kanban:setup first.\n"
 
 
@@ -143,11 +144,20 @@ def cmd_collect(a, data, out):
     if unparsed:
         out.write("%d of them are UNPARSED: the transcript format was not recognised. They are listed at the top "
                   "of the digest. Tell the user.\n" % len(unparsed))
-    out.write("Sessions: %s\nCards on the board (%d): %s\n\n" % (data.work / "digest.md", len(existing), data.work / "cards.md"))
-    for s in digest["sessions"][:60]:
-        out.write("  %s  %s  %s  %s\n" % (s["id"][:8], s["end"][:10], (s["repo"] or "-")[:24].ljust(24), s["title"]))
-    if n > 60:
-        out.write("  … and %d more in the digest.\n" % (n - 60))
+    by_folder = {}
+    for s in digest["sessions"]:
+        name = s["repo"] or "(no repo)"
+        by_folder[name] = by_folder.get(name, 0) + 1
+    out.write("By repo: %s.\n\n" % ", ".join("%s %d" % kv for kv in sorted(by_folder.items(), key=lambda kv: -kv[1])))
+    digest_md = (data.work / "digest.md").read_text(encoding="utf-8")
+    cards_md = (data.work / "cards.md").read_text(encoding="utf-8")
+    if len(digest_md) + len(cards_md) <= INLINE_MAX:
+        # Small enough to print: no file read is needed.
+        out.write("==== CARDS ON THE BOARD (%d) ====\n%s\n==== SESSIONS ====\n%s"
+                  % (len(existing), cards_md or "none\n", digest_md))
+    else:
+        out.write("Too long to print. Read both files in full:\n  sessions: %s\n  cards on the board (%d): %s\n"
+                  % (data.work / "digest.md", len(existing), data.work / "cards.md"))
     return 0
 
 
@@ -160,11 +170,15 @@ def cmd_index(a, data, out):
 def cmd_apply(a, data, out):
     if not _require(data, out):
         return 2
-    raw = sys.stdin.read()
     try:
+        if a.file:
+            with open(os.path.expanduser(a.file), "r", encoding="utf-8") as f:
+                raw = f.read()
+        else:
+            raw = sys.stdin.read()
         decision = json.loads(raw)
-    except ValueError as e:
-        out.write("REFUSED: the decision on stdin is not valid JSON (%s).\nNothing was written.\n" % e)
+    except (OSError, ValueError) as e:
+        out.write("REFUSED: the decision is not valid JSON (%s).\nNothing was written.\n" % e)
         return 2
     return cards.apply(data, decision, _now(), out)
 
@@ -235,7 +249,8 @@ def main(argv=None):
     sp.add_argument("--scan-days", type=int, help="look this many days back instead of since the last sync")
     sp.add_argument("--projects", help="the transcript folder (default ~/.claude/projects)")
     add("index", cmd_index, "print the cards of the saved board")
-    add("apply", cmd_apply, "merge the decision JSON on stdin into the cards")
+    sp = add("apply", cmd_apply, "merge the decision JSON (stdin, or --file) into the cards")
+    sp.add_argument("--file", help="read the decision from this file instead of stdin")
     add("commit", cmd_commit, "close the sync after the batch was written")
     add("refresh", cmd_refresh, "rebuild the local cache from the saved board")
     sp = add("show", cmd_show, "print the open cards from the local cache")

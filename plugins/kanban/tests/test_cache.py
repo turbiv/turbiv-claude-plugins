@@ -168,7 +168,9 @@ class CliTest(unittest.TestCase):
         (self.d / "db" / "meta" / "board.json").write_text('{"title": "Kanban"}')
         out = self.tool("collect", "--data", d, "--projects", str(self.projects), "--scan-days", "100000")
         self.assertIn("s-one", out)
-        self.assertIn("digest.md", out)
+        self.assertIn("By repo:", out)
+        self.assertIn("==== SESSIONS ====", out)        # a small digest is printed
+        self.assertIn("Make the temperature bigger", out)
         decision = {"versions": {"meta/board": 1}, "skip": [],
                     "cards": [{"id": None, "title": "Sauna", "summary": "s", "next_step": "n",
                                "sessions": [{"id": "s-one", "log": "Did it."}]}]}

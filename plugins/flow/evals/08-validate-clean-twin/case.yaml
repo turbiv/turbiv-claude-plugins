@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: 08-validate-clean-twin
+context:
+  scaffold_script: fixture.sh

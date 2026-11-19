@@ -1,0 +1,16 @@
+{
+  "name": "turbiv-claude-plugins",
+  "owner": {
+    "name": "Ivan Turbin"
+  },
+  "metadata": {
+    "description": "My Claude Code plugins. Install only what you want."
+  },
+  "plugins": [
+    {
+      "name": "flow",
+      "source": "./plugins/flow",
+      "description": "Takes a goal to an approved, binding spec, with one decision table and an always-on validator"
+    }
+  ]
+}

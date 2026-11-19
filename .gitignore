@@ -1,0 +1,7 @@
+.DS_Store
+.idea/
+# Written by Claude Code when it loads a plugin
+plugins/*/.claude-plugin/types/
+
+# flow work items are local, never committed
+work-items/

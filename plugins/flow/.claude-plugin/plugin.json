@@ -1,0 +1,16 @@
+{
+  "name": "flow",
+  "version": "0.1.0",
+  "description": "Takes a goal to an approved, binding spec: intake, research, plan, spec, an always-on validator, and one decision table. Local files are the source of truth",
+  "author": {
+    "name": "Ivan Turbin"
+  },
+  "skills": "./skills",
+  "agents": [
+    "./agents/repo-researcher.md",
+    "./agents/outside-researcher.md",
+    "./agents/spec-writer.md",
+    "./agents/spec-validator.md",
+    "./agents/tracker-jira.md"
+  ]
+}

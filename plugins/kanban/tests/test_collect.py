@@ -181,6 +181,16 @@ class CollectTest(unittest.TestCase):
         self.assertIn("Sauna dashboard UI", md)
         self.assertIn("s-a", md)
 
+    def test_sync_files_stay_out_of_dot_claude(self):
+        from kanban.store import exchange_dir
+        home = Path("/home/u")
+        self.assertEqual(exchange_dir(home / ".claude/plugins/data/kanban-x", {}, home),
+                         home / ".cache/kanban-board/kanban-x")
+        self.assertEqual(exchange_dir(home / ".claude/plugins/data/kanban-x", {"XDG_CACHE_HOME": "/c"}, home),
+                         Path("/c/kanban-board/kanban-x"))
+        self.assertEqual(exchange_dir(home / "elsewhere/data", {}, home), home / "elsewhere/data")
+        self.assertEqual(exchange_dir(home / ".claude/x", {"KANBAN_WORK_DIR": "/w"}, home), Path("/w"))
+
     def test_newest_sessions_first_and_cap(self):
         for i in range(5):
             self.transcript("s-%d" % i, days_ago=i + 1, day="2026-11-1%d" % (5 - i))

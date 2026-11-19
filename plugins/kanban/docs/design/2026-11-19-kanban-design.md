@@ -1,6 +1,7 @@
 # kanban: design
 
-Date: 2026-11-19. Status: draft, waiting for the owner's approval.
+Date: 2026-11-19. Status: approved by the owner on 2026-11-19, then built. The tool commands and the
+sync steps below are as built.
 
 ## Intent
 
@@ -110,12 +111,14 @@ plugins/kanban/
 | `pending.jsonl` | hooks | one line per hook event, not yet synced |
 | `processing-*.jsonl` | `kanban-tool collect` | pending lines taken by a running sync (atomic rename) |
 | `log.jsonl` | `kanban-tool commit` | all synced lines, the durable session record |
-| `state.json` | `kanban-tool` | per session: transcript size and mtime at last digest, card ids. A local cache of `meta/synced` |
 | `cards.json` | `kanban-tool commit` | cache of the cards |
 | `context/tree/<key>.txt` | `kanban-tool commit` | pre-rendered start-hook text for a git repo root; also matches folders below it |
 | `context/exact/<key>.txt` | `kanban-tool commit` | the same for a folder that is not a repo; matches only that folder |
 | `last-sync` | `kanban-tool commit` | stamp file; its mtime is the last sync time |
-| `work/` | sync | digest and card files of the current sync |
+
+The files of one sync are not in the data folder. They are in `~/.cache/kanban-board/<name of the data
+folder>/` (`db/`: the saved board; `work/`: digests and card files). Found in the build: `ArtifactData`
+refuses to save files below `~/.claude`.
 
 ### Hooks
 
@@ -147,10 +150,14 @@ All mechanical work. Claude never parses transcripts or builds caches itself.
 |---|---|
 | `init --data D --url U` | writes `config.json` |
 | `status --data D` | prints the config, the pending count and the last sync time |
-| `collect --data D --synced FILE [--scan-days N]` | takes the pending lines; scans `~/.claude/projects` for transcripts changed since the last sync (or in the last N days on the first sync); drops excluded folders and sessions that `meta/synced` already has at the same end time; writes `work/digest.json`; prints a short table |
-| `index --data D --db DIR` | reads the card files that `ArtifactData list … out_dir` saved; prints a compact index (id, title, status, repos, folders, sessions, summary, next step, version) |
-| `apply --data D` | reads Claude's decisions as JSON on stdin; merges them into the saved card files by the field-ownership rules; writes `work/out/cards/<id>.json` and `work/batch.json` |
-| `commit --data D` | after the write succeeded: updates `state.json`, `cards.json`, `context/`, `log.jsonl`, `last-sync`; removes the processing files |
+| `begin --data D` | starts a sync: clears `db/` and `work/`, prints the board URL and the folder where `ArtifactData list … out_dir` must save the board |
+| `collect --data D [--scan-days N]` | takes the pending lines; scans `~/.claude/projects` for transcripts changed since the last sync (or in the last N days on the first sync); drops excluded folders and sessions that `meta/synced` already has at the same end time; writes `work/digest.json`, `work/digest.md` and `work/cards.md`; prints them when they are short. With nothing new it closes the sync itself |
+| `index --data D` | prints the cards of the saved board as compact text |
+| `apply --data D [--file F]` | reads Claude's decision as JSON (stdin or a file); merges it into the saved cards by the field-ownership rules; writes `work/out/<collection>/<id>.json`; prints the list of writes for `ArtifactData batch`. The versions for `if_version` come in the decision, because the saved files do not hold them |
+| `commit --data D` | after the write succeeded: updates `cards.json`, `context/`, `log.jsonl`, `last-sync`; removes the processing files |
+| `refresh --data D` | rebuilds `cards.json` and `context/` from the saved board, without a sync (after a change by `/kanban:board`) |
+| `show --data D [--all]` | prints the open cards from `cards.json` |
+| `exclude --data D --add P \| --remove P \| --list` | the folders that never go on the board |
 
 A digest for one session holds: session id, title (the last `custom-title` entry, else the generated
 title, else the first prompt), start and end time, folders, the repo root (worktrees map to their main
@@ -260,9 +267,8 @@ IDEAS (2)          TODO (1)           DOING (3)                    DONE (4)
 
 **`/kanban:sync [unattended]`**, also triggered by "sync my board" or "update the kanban".
 
-1. `kanban-tool collect`. With nothing new it stops and says so.
-2. `ArtifactData list` of `cards` and `meta` with `out_dir`, then `kanban-tool index`. (Step 1 reads
-   `meta/synced` from the last saved copy; when there is none, sync lists `meta` first.)
+1. `kanban-tool begin`, then `ArtifactData list` of `meta` and `cards` with the `out_dir` it prints.
+2. `kanban-tool collect`. With nothing new it stops and says so.
 3. Claude matches each digest to a card by `resources/sync-rules.md`: the same repo and topic attach; a
    new topic makes a card; scratch sessions group by title and topic. It writes `summary`, `next_step`
    and one `log` line per session.

@@ -166,6 +166,11 @@ class DigestTest(unittest.TestCase):
             p = fx.write(self.tmp / "s.jsonl", [fx.user(text, "2026-11-10T10:00:00Z"),
                                                 fx.assistant("ok", "2026-11-10T10:00:01Z")])
             self.assertTrue(transcript.digest(p)["sync_session"], text)
+        # A task that only mentions the command is real work.
+        p = fx.write(self.tmp / "m.jsonl", [
+            fx.user("Build a plugin with a skill /kanban:sync and a hook", "2026-11-10T10:00:00Z"),
+            fx.assistant("ok", "2026-11-10T10:00:01Z")])
+        self.assertFalse(transcript.digest(p)["sync_session"])
         p = fx.write(self.tmp / "s.jsonl", [fx.user("Fix the bug", "2026-11-10T10:00:00Z"),
                                             fx.assistant("ok", "2026-11-10T10:00:01Z"),
                                             fx.user("/kanban:sync", "2026-11-10T10:01:00Z")])

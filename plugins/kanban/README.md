@@ -92,6 +92,7 @@ What happens in a sync:
 |---|---|
 | The board's database (claude.ai) | The cards, and the record of which sessions are on the board. This is the source of truth |
 | The plugin's data folder (`~/.claude/plugins/data/<plugin id>/`) | `config.json` (the board link, excluded folders), the session log, and a copy of the cards for the session-start hook |
+| `~/.cache/kanban-board/<plugin id>/` | The files of the current sync: a copy of the board and the session digests. Claude's board tool cannot write below `~/.claude`, so they are here. Safe to delete between syncs |
 
 Uninstalling the plugin deletes the data folder. The board and its cards stay on claude.ai: install
 again, run `/kanban:setup`, choose "link an existing board", and nothing is lost or doubled. To keep the

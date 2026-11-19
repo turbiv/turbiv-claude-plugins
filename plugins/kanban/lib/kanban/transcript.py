@@ -179,7 +179,9 @@ def digest(path, since=None):
     out["files"] = files[:MAX_FILES]
     out["title"] = cut(custom_title or ai_title or summary or (prompts[0] if prompts else ""), TITLE_MAX)
     if first_text is not None:
-        out["sync_session"] = any(mark in first_text for mark in SYNC_MARKS)
+        # Only a session that STARTS with the command is a sync session. A task
+        # text that just mentions /kanban:sync is real work.
+        out["sync_session"] = _readable(first_text).lstrip().startswith(SYNC_MARKS)
     if messages == 0:
         out["unparsed"] = size >= UNPARSED_MIN_BYTES
     elif not since and not prompts and replies:

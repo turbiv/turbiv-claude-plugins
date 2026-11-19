@@ -9,6 +9,7 @@ plugins from it.
 | Plugin | What it does | How to use it |
 |---|---|---|
 | [flow](plugins/flow/README.md) | Takes a goal to an approved, binding spec, with one decision table and an always-on validator | `/flow:start <goal>`, then `/flow:status` to resume. Each stage also runs alone |
+| [context-band](plugins/context-band/README.md) | Band above the prompt in the Claude apps: context fill, plan usage (5h/7d) or USD, and Spotify's current track | Nothing to run: it shows once installed. Apps only, not the terminal |
 
 Each plugin's README says what it needs and how to use it. Read it before installing.
 

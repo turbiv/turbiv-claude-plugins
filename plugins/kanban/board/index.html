@@ -234,7 +234,7 @@ a { color: var(--accent); }
 <script>
 (function () {
   "use strict";
-  var PAGE_VERSION = 2;
+  var PAGE_VERSION = 3;
   var COLUMNS = [
     { key: "idea", label: "Ideas", empty: "No ideas parked here." },
     { key: "todo", label: "Todo", empty: "Nothing is queued." },
@@ -250,7 +250,7 @@ a { color: var(--accent); }
   var S = {
     db: null, canEdit: false, cards: [], meta: {}, loaded: false, slow: false, dead: null,
     repo: "", query: "", staleOnly: false, showArchived: false, tab: "doing",
-    openId: null, dirty: false
+    openId: null, dirty: false, base: null, openJson: ""
   };
   var el = function (id) { return document.getElementById(id); };
   var queues = {};
@@ -316,12 +316,14 @@ a { color: var(--accent); }
   }
 
   // ---------- writes: one at a time per card ----------
+  // Resolves true when the write was stored, false when it was refused or failed.
   function write(id, fn) {
     var prev = queues[id] || Promise.resolve();
-    var next = prev.then(fn).catch(function (e) {
+    var next = prev.then(fn).then(function () { return true; }, function (e) {
       if (e && e.code === "invalid_argument") toast("You can't change this board.");
       else if (e && e.code === "quota_exceeded") toast("The board is full. Delete or archive cards.");
       else toast("That change was not saved. Try again.");
+      return false;
     });
     queues[id] = next;
     return next;
@@ -492,12 +494,12 @@ a { color: var(--accent); }
   // ---------- the card dialog ----------
   function openCard(id) {
     var c = byId(id); if (!c) return;
-    S.openId = id; S.dirty = false;
+    S.openId = id; S.dirty = false; S.openJson = "";
     if (c.is_new && S.canEdit) updateCard(id, { is_new: false });
     renderDialog();
     var d = el("card-dlg"); if (!d.open) d.showModal();
   }
-  function closeCard() { S.openId = null; S.dirty = false; var d = el("card-dlg"); if (d.open) d.close(); }
+  function closeCard() { S.openId = null; S.dirty = false; S.base = null; var d = el("card-dlg"); if (d.open) d.close(); }
 
   function sec(label, body, forId) {
     return h("div", { class: "sec" }, [forId ? h("label", { for: forId, text: label }) : h("div", { class: "lab", text: label }), body]);
@@ -505,6 +507,10 @@ a { color: var(--accent); }
   function renderDialog() {
     var d = el("card-dlg"), c = byId(S.openId);
     if (!c) { if (d.open) d.close(); S.openId = null; return; }
+    // The values the fields start from. Save compares with these, not with a
+    // later snapshot, so a field the owner did not touch is never written back.
+    S.base = { title: str(c.title), next_step: str(c.next_step), notes: str(c.notes) };
+    S.openJson = JSON.stringify(c);
     var ed = S.canEdit, st = staleness(c);
     var colLabel = (COLUMNS.filter(function (x) { return x.key === c.status; })[0] || {}).label || c.status;
 
@@ -576,15 +582,20 @@ a { color: var(--accent); }
   }
   function dirty() { S.dirty = true; var b = el("dlg-save"); if (b) b.disabled = false; }
   function saveDialog() {
-    var c = byId(S.openId); if (!c) return;
-    var f = {}, now = new Date().toISOString();
+    var c = byId(S.openId), base = S.base; if (!c || !base) return;
+    var id = c.id, f = {}, now = new Date().toISOString();
     var title = el("dlg-title").value.trim(), next = el("dlg-next").value.trim(), notes = el("dlg-notes").value;
-    if (title && title !== str(c.title)) f.title = title;
-    if (next !== str(c.next_step)) { f.next_step = next; f.next_step_edited_at = now; }
-    if (notes !== str(c.notes)) f.notes = notes;
-    S.dirty = false;
-    if (Object.keys(f).length) updateCard(c.id, f).then(function () { toast("Saved."); });
+    if (title && title !== base.title) f.title = title;
+    if (next !== base.next_step.trim()) { f.next_step = next; f.next_step_edited_at = now; }
+    if (notes !== base.notes) f.notes = notes;
     var b = el("dlg-save"); if (b) b.disabled = true;
+    if (!Object.keys(f).length) { S.dirty = false; return; }
+    // The typed text stays in the fields (dirty stays true) until the write is confirmed.
+    updateCard(id, f).then(function (ok) {
+      if (S.openId !== id) { if (ok) toast("Saved."); return; }
+      if (ok) { S.dirty = false; toast("Saved."); renderDialog(); }
+      else { var again = el("dlg-save"); if (again) again.disabled = false; }
+    });
   }
   function copy(text, btn) {
     var done = function () { var t = btn.textContent; btn.textContent = "Copied"; setTimeout(function () { btn.textContent = t; }, 1500); };
@@ -620,9 +631,17 @@ a { color: var(--accent); }
   el("add-btn").addEventListener("click", function () { el("add-dlg").showModal(); el("add-name").focus(); });
   el("add-close").addEventListener("click", function () { el("add-dlg").close(); });
   el("add-form").addEventListener("submit", addCard);
-  el("card-dlg").addEventListener("close", function () { S.openId = null; S.dirty = false; });
+  el("card-dlg").addEventListener("close", function () { S.openId = null; S.dirty = false; S.base = null; });
+  // Esc or a click outside does not throw typed text away. The x button does.
+  el("card-dlg").addEventListener("cancel", function (e) {
+    if (S.dirty) { e.preventDefault(); toast("Unsaved changes. Save them, or close with x to discard."); }
+  });
   [el("card-dlg"), el("add-dlg")].forEach(function (d) {
-    d.addEventListener("click", function (e) { if (e.target === d) d.close(); });
+    d.addEventListener("click", function (e) {
+      if (e.target !== d) return;
+      if (d.id === "card-dlg" && S.dirty) { toast("Unsaved changes. Save them, or close with x to discard."); return; }
+      d.close();
+    });
   });
   S.repo = pref("repo") || "";
   S.tab = pref("tab") || "doing";
@@ -660,8 +679,12 @@ a { color: var(--accent); }
       });
       S.loaded = true; settled(snap.metadata);
       render();
-      // Refresh an open card, but not while its fields are being edited.
-      if (S.openId && !S.dirty) renderDialog();
+      // Refresh an open card only when it changed, and never while its fields are
+      // being edited: a re-render would drop the typed text and the focus.
+      if (S.openId && !S.dirty) {
+        var open = byId(S.openId);
+        if (!open || JSON.stringify(open) !== S.openJson) renderDialog();
+      }
     }, failed);
     db.doc("meta/board").onSnapshot(function (snap) {
       S.meta = snap.exists ? (snap.data() || {}) : {};

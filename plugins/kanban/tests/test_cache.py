@@ -122,6 +122,7 @@ class CommitTest(unittest.TestCase):
         self.assertEqual(len(list((self.data.path / "context" / "exact").glob("*.txt"))), 1)
 
     def test_refresh_from_db_snapshot(self):
+        self.data.write_json("db/meta/board.json", {"title": "Kanban"})
         self.data.write_json("db/cards/a.json", card("From db", folders=[str(self.repo)]))
         self.assertEqual(cache.refresh(self.data, NOW, io.StringIO()), 0)
         self.assertIn("From db", (self.data.path / "context" / "tree" / (key(str(self.repo)) + ".txt")).read_text())
@@ -170,6 +171,7 @@ class CliTest(unittest.TestCase):
         out = self.tool("collect", "--data", d, "--projects", str(self.projects), "--scan-days", "100000")
         self.assertIn("s-one", out)
         self.assertIn("By repo:", out)
+        self.assertIn("/work/proj", out)                # the folder, so the user can name it to exclude it
         self.assertIn("==== SESSIONS ====", out)        # a small digest is printed
         self.assertIn("Make the temperature bigger", out)
         decision = {"versions": {"meta/board": 1}, "skip": [],
@@ -188,6 +190,7 @@ class CliTest(unittest.TestCase):
         (self.d / "db" / "meta" / "synced.json").write_text(synced)
         out = self.tool("collect", "--data", d, "--projects", str(self.projects), "--scan-days", "100000")
         self.assertIn("Nothing new", out)
+        self.assertIn("last_sync", out)                 # the one board write that shows the sync ran
         self.assertIn("apply", self.tool("commit", "--data", d, expect=2))
         # Nothing new, but the owner changed a card on the page: the local copy follows the board.
         self.tool("begin", "--data", d)
@@ -200,6 +203,30 @@ class CliTest(unittest.TestCase):
         self.assertIn("Moved by hand", shown)
         self.assertNotIn("Sauna", shown)          # a won't-do card is not an open card
         self.assertIn("Sauna", self.tool("show", "--data", d, "--all"))
+
+    def test_exclude_input(self):
+        d = str(self.d)
+        self.tool("init", "--data", d, "--url", "https://claude.ai/artifact/abc")
+        home = os.path.expanduser("~")
+        self.tool("exclude", "--data", d, "--add", "~/git/client-x/")
+        self.tool("exclude", "--data", d, "--add", "secret-repo")
+        self.tool("exclude", "--data", d, "--add", "/jobs/acme-*")
+        cfg = json.loads((self.d / "config.json").read_text())
+        self.assertEqual(cfg["exclude"], [home + "/git/client-x", "secret-repo", "/jobs/acme-*"])
+        # A relative path can never match a session folder: refuse it and say why.
+        out = self.tool("exclude", "--data", d, "--add", "work/proj", expect=2)
+        self.assertIn("full path", out)
+        self.assertEqual(json.loads((self.d / "config.json").read_text())["exclude"], cfg["exclude"])
+        self.tool("exclude", "--data", d, "--remove", "~/git/client-x")
+        self.assertNotIn("client-x", (self.d / "config.json").read_text())
+
+    def test_refresh_needs_a_saved_board(self):
+        d = str(self.d)
+        self.tool("init", "--data", d, "--url", "https://claude.ai/artifact/abc")
+        Data(self.d).write_json("cards.json", {"cards": {"a": card("Keep me")}})
+        self.tool("begin", "--data", d)
+        self.assertIn("ArtifactData", self.tool("refresh", "--data", d, expect=2))
+        self.assertIn("Keep me", (self.d / "cards.json").read_text())
 
     def test_apply_bad_json(self):
         d = str(self.d)

@@ -84,7 +84,9 @@ What happens in a sync:
 - The board is private until you share it. People you share it with see **every card**, read-only, and
   must be signed in to claude.ai. Only you, and people you make an editor, can change cards.
 - Card text comes from your sessions. Leave folders off the board with the question in setup, or later:
-  "stop tracking the folder ~/git/client-x" (`/kanban:board`).
+  "stop tracking the folder ~/git/client-x" (`/kanban:board`). A full path, or a folder's name alone,
+  both work.
+- Runs of scheduled tasks are never put on the board.
 - Sync writes no tokens, passwords or keys into cards, and `kanban-tool` refuses text that looks like
   one. Read your cards once before you share the board.
 - Other people can install this plugin. Each of them gets their own board in their own account.

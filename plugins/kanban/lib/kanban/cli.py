@@ -130,14 +130,16 @@ def cmd_collect(a, data, out):
     existing, _, synced = cards.load_db(data)
     projects = Path(os.path.expanduser(a.projects)) if a.projects else Path(os.path.expanduser("~/.claude/projects"))
     now = _now()
-    digest = collect.run(data, synced or {}, projects, a.scan_days, now)
+    digest = collect.run(data, synced or {}, projects, a.scan_days, now, cards=existing)
     n = len(digest["sessions"])
     left = ", ".join("%s %d" % (k.replace("_", " "), v) for k, v in sorted(digest["skipped"].items()) if v)
     if n == 0:
         cache.finish_nothing_new(data, now)
         out.write("Nothing new. No session needs a card%s. The local copy now matches the board (%d cards). "
                   "The sync is closed; do not run apply or commit.\n"
-                  % (" (left out: %s)" % left if left else "", len(existing)))
+                  "One last step, so the board shows that the sync ran: ArtifactData, action \"update\", collection "
+                  "\"meta\", doc_id \"board\", data {\"last_sync\": \"%s\"}, with if_version from your list result.\n"
+                  % (" (left out: %s)" % left if left else "", len(existing), cards.iso(now)))
         return 0
     (data.work / "cards.md").write_text(card_index(existing, now), encoding="utf-8")
     unparsed = [s for s in digest["sessions"] if s["unparsed"]]
@@ -147,9 +149,12 @@ def cmd_collect(a, data, out):
                   "of the digest. Tell the user.\n" % len(unparsed))
     by_folder = {}
     for s in digest["sessions"]:
-        name = s["repo"] or "(no repo)"
+        name = s["repo_root"] or "(no repo)"
         by_folder[name] = by_folder.get(name, 0) + 1
-    out.write("By repo: %s.\n\n" % ", ".join("%s %d" % kv for kv in sorted(by_folder.items(), key=lambda kv: -kv[1])))
+    out.write("By repo:\n")
+    for name, count in sorted(by_folder.items(), key=lambda kv: -kv[1]):
+        out.write("  %3d  %s\n" % (count, name))
+    out.write("\n")
     digest_md = (data.work / "digest.md").read_text(encoding="utf-8")
     cards_md = (data.work / "cards.md").read_text(encoding="utf-8")
     if len(digest_md) + len(cards_md) <= INLINE_MAX:
@@ -191,6 +196,10 @@ def cmd_commit(a, data, out):
 def cmd_refresh(a, data, out):
     if not _require(data, out):
         return 2
+    if not (data.db / "meta" / "board.json").exists():
+        out.write("REFUSED: the board is not saved. Run `kanban-tool begin`, then ArtifactData \"list\" for \"meta\" "
+                  "and \"cards\" with out_dir %s, then refresh.\nNothing was changed.\n" % data.db)
+        return 2
     return cache.refresh(data, _now(), out)
 
 
@@ -217,12 +226,22 @@ def cmd_exclude(a, data, out):
     if not cfg:
         return 2
     ex = [e for e in (cfg.get("exclude") or []) if isinstance(e, str)]
+
+    def norm(p):
+        # A name (no "/") stays a name. A path is stored in full.
+        p = p.strip()
+        return p if "/" not in p else (os.path.expanduser(p).rstrip("/") or "/")
+
     if a.add:
-        path = a.add.rstrip("/") or "/"
-        if path not in ex:
+        path = norm(a.add)
+        if "/" in path and not path.startswith("/"):
+            out.write("REFUSED: %r is a relative path, and that can never match a session's folder. Give the full "
+                      "path (for example ~/git/client-x) or only the folder's name (client-x).\n" % a.add)
+            return 2
+        if path and path not in ex:
             ex.append(path)
     if a.remove:
-        ex = [e for e in ex if e != (a.remove.rstrip("/") or "/")]
+        ex = [e for e in ex if e != norm(a.remove)]
     cfg["exclude"] = ex
     if a.add or a.remove:
         data.save_config(cfg)

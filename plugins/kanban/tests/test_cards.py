@@ -131,6 +131,17 @@ class NewCardTest(ApplyBase):
         self.assertEqual(len([k for k in w if k.startswith("cards/")]), 2)
 
 
+class SessionTitleTest(ApplyBase):
+    def test_secret_in_a_session_title_is_not_written(self):
+        # A session with no title is named after its first prompt, and a prompt can hold a token.
+        self.sessions = [session("aaaa1111-x", title="use ghp_" + "a1B2" * 9 + " to push")]
+        w = self.apply({"cards": [{"id": None, "title": "T", "sessions": [{"id": "aaaa1111-x", "log": "Pushed."}]}],
+                        "skip": []})
+        c = self.doc([k for k in w if k.startswith("cards/")][0])
+        self.assertEqual(c["sessions"][0]["title"], "(title hidden: it looked like a secret)")
+        self.assertNotIn("ghp_", json.dumps(c))
+
+
 class ExistingCardTest(ApplyBase):
     def setUp(self):
         super().setUp()
@@ -328,6 +339,12 @@ class RefusalTest(ApplyBase):
         d = self.good()
         d["cards"][0]["sessions"][0]["log"] = "password ghp_" + "a1B2" * 9
         self.refuse(d, "log")
+
+    def test_same_card_twice(self):
+        self.existing = {"sauna-ab12": card()}
+        self.refuse({"cards": [
+            {"id": "sauna-ab12", "sessions": [{"id": "aaaa1111-x", "log": "one"}]},
+            {"id": "sauna-ab12", "sessions": [{"id": "bbbb2222-x", "log": "two"}]}], "skip": []}, "sauna-ab12")
 
     def test_missing_version(self):
         self.existing = {"sauna-ab12": card()}

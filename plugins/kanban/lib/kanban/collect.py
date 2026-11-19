@@ -75,14 +75,27 @@ def repo_state(root, since):
 
 
 def excluded(folders, patterns):
+    """Is one of the folders shut out by a pattern?
+
+    A pattern with a "/" is a full path (or a glob of one): it shuts out that
+    folder and everything below it. A pattern without a "/" is a folder name:
+    it shuts out every folder that has a path part with that name, so the
+    name of a repo covers its subfolders and its worktrees too.
+    """
     for pat in patterns:
         if not isinstance(pat, str) or not pat.strip():
             continue
-        pat = os.path.expanduser(pat.strip()).rstrip("/") or "/"
+        pat = pat.strip()
+        by_name = "/" not in pat
+        if not by_name:
+            pat = os.path.expanduser(pat).rstrip("/") or "/"
         for f in folders:
             if not f:
                 continue
-            if f == pat or f.startswith(pat + "/") or fnmatch.fnmatch(f, pat) or fnmatch.fnmatch(f, pat + "/*"):
+            if by_name:
+                if any(fnmatch.fnmatch(part, pat) for part in f.split("/") if part):
+                    return True
+            elif f == pat or f.startswith(pat + "/") or fnmatch.fnmatch(f, pat) or fnmatch.fnmatch(f, pat + "/*"):
                 return True
     return False
 
@@ -129,12 +142,29 @@ def _candidates(events, projects_dir, cutoff):
     return found
 
 
-def run(data, synced, projects_dir, scan_days, now, max_sessions=MAX_SESSIONS):
+def _on_cards(cards):
+    """session id -> {cards, end}, read from the cards' own session lists."""
+    out = {}
+    for cid, c in (cards or {}).items():
+        for s in (c.get("sessions") or []) if isinstance(c, dict) else []:
+            if isinstance(s, dict) and isinstance(s.get("id"), str):
+                e = out.setdefault(s["id"], {"cards": [], "end": ""})
+                e["cards"].append(cid)
+                e["end"] = max(e["end"], str(s.get("date") or ""))
+    return out
+
+
+def run(data, synced, projects_dir, scan_days, now, max_sessions=MAX_SESSIONS, cards=None):
     """Build the digest of everything that is new. Writes work/digest.json and
-    work/digest.md and returns the digest object."""
+    work/digest.md and returns the digest object.
+
+    `cards` is the saved board. A session that a card already names is treated
+    as synced even when `meta/synced` does not have it (a sync can die after
+    the cards were written and before the record was)."""
     cfg = data.config()
     patterns = cfg.get("exclude") if isinstance(cfg.get("exclude"), list) else []
     synced = synced if isinstance(synced, dict) else {}
+    on_cards = _on_cards(cards)
     last = data.last_sync_time()
     first_sync = last is None
     if scan_days is not None:
@@ -146,16 +176,21 @@ def run(data, synced, projects_dir, scan_days, now, max_sessions=MAX_SESSIONS):
     since = iso(datetime.fromtimestamp(cutoff, timezone.utc))
 
     events = data.take_pending()
-    skipped = {"synced": 0, "excluded": 0, "no_prompt": 0, "sync_session": 0, "missing": 0, "over_cap": 0}
+    skipped = {"synced": 0, "excluded": 0, "no_prompt": 0, "sync_session": 0, "scheduled": 0, "missing": 0,
+               "over_cap": 0}
     sessions, roots = [], {}
     for sid, c in _candidates(events, Path(projects_dir), cutoff).items():
         if c["path"] is None:
             skipped["missing"] += 1
             continue
-        prev = synced.get(sid) if isinstance(synced.get(sid), dict) else None
+        prev = synced.get(sid) if isinstance(synced.get(sid), dict) else on_cards.get(sid)
         d = transcript.digest(c["path"], since=prev.get("end") if prev else None)
         if d["sync_session"]:
             skipped["sync_session"] += 1
+            continue
+        if d["scheduled"]:
+            # A run of some other scheduled task. Nobody "left off" there.
+            skipped["scheduled"] += 1
             continue
         if prev and d["end"] <= str(prev.get("end") or ""):
             skipped["synced"] += 1
@@ -168,7 +203,10 @@ def run(data, synced, projects_dir, scan_days, now, max_sessions=MAX_SESSIONS):
         if excluded(d["folders"] + [root], patterns):
             skipped["excluded"] += 1
             continue
-        if d["turns"] == 0 and not d["unparsed"]:
+        # No prompt: nothing was asked. But a session that was synced in the middle
+        # of a turn has later replies and edits with no new prompt: keep those.
+        went_on = bool(prev) and bool(d["last_reply"] or d["files"])
+        if d["turns"] == 0 and not d["unparsed"] and not went_on:
             skipped["no_prompt"] += 1
             continue
         d.update({
@@ -248,6 +286,8 @@ def render(digest):
         if s["unparsed"]:
             out.append("UNPARSED: " + s["transcript"])
             continue
+        if s["turns"] == 0 and s["known_cards"]:
+            out.append("(no new prompt: the turn that was running at the last sync went on)")
         for i, p in enumerate(s["prompts"]):
             out.append("asked %d: %s" % (i + 1, cut(p, p_max)))
         if s["turns"] > len(s["prompts"]) and s["last_prompt"]:

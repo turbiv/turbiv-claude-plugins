@@ -176,6 +176,36 @@ class DigestTest(unittest.TestCase):
                                             fx.user("/kanban:sync", "2026-11-10T10:01:00Z")])
         self.assertFalse(transcript.digest(p)["sync_session"])
 
+    def test_scheduled_task_run(self):
+        # The desktop app wraps a scheduled run's prompt in a tag and adds its own first lines.
+        text = ('<scheduled-task name="kanban-daily-sync" file="/x/SKILL.md">\nThis is an automated run of a '
+                'scheduled task. The user is not present.\n\n[kanban-sync] Update my kanban board.\n</scheduled-task>')
+        p = fx.write(self.tmp / "s.jsonl", [
+            fx.user(text, "2026-11-10T10:00:00Z", origin={"kind": "task-notification", "subkind": "scheduled-trigger"}),
+            fx.assistant("Synced. " * 400, "2026-11-10T10:00:01Z")])
+        d = transcript.digest(p)
+        self.assertFalse(d["unparsed"])
+        self.assertTrue(d["scheduled"])
+        self.assertTrue(d["sync_session"])
+        self.assertEqual(d["turns"], 1)
+        other = text.replace("kanban-daily-sync", "morning-brief").replace("[kanban-sync] Update my kanban board.", "Make my brief.")
+        p = fx.write(self.tmp / "o.jsonl", [
+            fx.user(other, "2026-11-10T10:00:00Z", origin={"kind": "task-notification", "subkind": "scheduled-trigger"}),
+            fx.assistant("Brief. " * 400, "2026-11-10T10:00:01Z")])
+        d = transcript.digest(p)
+        self.assertTrue(d["scheduled"])
+        self.assertFalse(d["sync_session"])
+        self.assertFalse(d["unparsed"])
+        self.assertIn("Make my brief.", d["prompts"][0])
+
+    def test_pasted_text_is_a_prompt(self):
+        only = fx.user('<pasted_content>\nTraceback: boom in line 3\n</pasted_content id="5433">', "2026-11-10T10:00:00Z")
+        mixed = fx.user('Why does this fail?\n<pasted_content>\nError 42\n</pasted_content id="1">', "2026-11-10T10:01:00Z")
+        p = fx.write(self.tmp / "s.jsonl", [only, fx.assistant("reply " * 400, "2026-11-10T10:00:30Z"), mixed])
+        d = transcript.digest(p)
+        self.assertFalse(d["unparsed"])
+        self.assertEqual(d["prompts"], ["Traceback: boom in line 3", "Why does this fail? Error 42"])
+
     def test_slash_command_prompt_is_readable(self):
         text = "<command-message>flow:start</command-message>\n<command-name>/flow:start</command-name>\n<command-args>add a deploy line</command-args>"
         p = fx.write(self.tmp / "s.jsonl", [fx.user(text, "2026-11-10T10:00:00Z"),

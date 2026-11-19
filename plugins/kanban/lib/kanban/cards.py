@@ -204,7 +204,13 @@ def plan(data, decision, now):
         sid = item.get("id") if isinstance(item, dict) else item
         skipped.add(_resolve(_s(sid), by_id))
 
-    final, writes, taken = dict(existing), [], set(existing)
+    # A session with no title is named after its first prompt, and a prompt can
+    # hold a token. Such a title must not reach the board.
+    for s in digest["sessions"]:
+        if any(pat.search(_s(s.get("title"))) for pat in SECRETS):
+            s["title"] = "(title hidden: it looked like a secret)"
+
+    final, writes, taken, seen_ids = dict(existing), [], set(existing), set()
     for n, d in enumerate(_list(decision.get("cards"))):
         where = "cards[%d]" % n
         if not isinstance(d, dict):
@@ -214,6 +220,9 @@ def plan(data, decision, now):
         if cid is not None:
             if cid not in existing:
                 raise Refused("%s: card %r is not on the board. Use \"id\": null to make a new card." % (where, cid))
+            if cid in seen_ids:
+                raise Refused("%s: card %r is in the decision twice. Put all its sessions in one entry." % (where, cid))
+            seen_ids.add(cid)
             old = existing[cid]
         elif not _s(d.get("title")).strip():
             raise Refused("%s: a new card needs a title." % where)

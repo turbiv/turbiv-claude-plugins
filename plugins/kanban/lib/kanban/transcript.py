@@ -25,6 +25,9 @@ _ARGS = re.compile(r"<command-args>(.*?)</command-args>", re.S)
 # Blocks the app adds around what the user typed. They are not the user's words.
 _WRAPPERS = re.compile(
     r"<(system-reminder|local-command-caveat|local-command-stdout|local-command-stderr)>.*?</\1>", re.S)
+# Tags that wrap real content: a scheduled run's prompt, and text the user pasted.
+_SCHEDULED = re.compile(r"^\s*<scheduled-task\b([^>]*)>(.*?)(?:</scheduled-task[^>]*>|$)", re.S)
+_PASTED = re.compile(r"<pasted_content\b[^>]*>(.*?)</pasted_content[^>]*>", re.S)
 # Commands that only change the session's settings. They say nothing about the work.
 BUILTIN_COMMANDS = frozenset(
     "/model /clear /compact /config /cost /help /resume /rename /login /logout /plugin /permissions "
@@ -56,11 +59,18 @@ def _text_of(content):
         text = "\n".join(parts)
     else:
         return ""
-    return _WRAPPERS.sub("", text).strip() if "<" in text else text.strip()
+    if "<" not in text:
+        return text.strip()
+    text = _PASTED.sub(lambda m: m.group(1), _WRAPPERS.sub("", text))
+    return text.strip()
 
 
 def _readable(text):
-    """A slash command arrives wrapped in tags. Make it '/name args'."""
+    """A slash command arrives wrapped in tags. Make it '/name args'.
+    A scheduled run's prompt loses its wrapper tag."""
+    m = _SCHEDULED.match(text)
+    if m:
+        return m.group(2).strip()
     m = _COMMAND.search(text)
     if not m:
         return text
@@ -77,6 +87,8 @@ def _prompt_kind(entry, text):
     """
     if not text or entry.get("isMeta"):
         return None
+    if _SCHEDULED.match(text):
+        return "other"   # the prompt of a scheduled run: nobody typed it
     command = _COMMAND.search(text)
     if command:
         return None if command.group(1) in BUILTIN_COMMANDS else "human"
@@ -98,7 +110,7 @@ def digest(path, since=None):
     out = {
         "id": path.stem, "title": "", "start": "", "end": "", "folders": [], "branch": "",
         "prompts": [], "last_prompt": "", "last_reply": "", "turns": 0,
-        "files": [], "files_total": 0, "unparsed": False, "sync_session": False,
+        "files": [], "files_total": 0, "unparsed": False, "sync_session": False, "scheduled": False,
     }
     since = norm_ts(since) if since else ""
     custom_title = ai_title = summary = ""
@@ -182,6 +194,11 @@ def digest(path, since=None):
         # Only a session that STARTS with the command is a sync session. A task
         # text that just mentions /kanban:sync is real work.
         out["sync_session"] = _readable(first_text).lstrip().startswith(SYNC_MARKS)
+        sched = _SCHEDULED.match(first_text)
+        if sched:
+            # The app puts its own lines before the task's prompt, so look inside.
+            out["scheduled"] = True
+            out["sync_session"] = "[kanban-sync]" in sched.group(2) or "kanban:sync" in sched.group(2)
     if messages == 0:
         out["unparsed"] = size >= UNPARSED_MIN_BYTES
     elif not since and not prompts and replies:

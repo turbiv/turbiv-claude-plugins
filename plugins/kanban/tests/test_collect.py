@@ -97,6 +97,50 @@ class CollectTest(unittest.TestCase):
         self.assertEqual(s["prompts"], ["Make the temperature bigger"])  # only what is new
         self.assertEqual(s["known_cards"], ["c2"])
 
+    def test_work_after_a_mid_turn_sync_is_not_lost(self):
+        # A sync ran while a turn was going. The rest of that turn has no new prompt.
+        self.transcript("s-mid")
+        d = self.run_collect(synced={"s-mid": {"cards": ["c1"], "end": "2026-11-10T10:05:30Z"}})
+        self.assertEqual(self.ids(d), ["s-mid"])
+        s = d["sessions"][0]
+        self.assertEqual(s["turns"], 0)
+        self.assertIn("large type", s["last_reply"])
+        self.assertEqual(s["known_cards"], ["c1"])
+        self.assertIn("no new prompt", (self.data.work / "digest.md").read_text())
+
+    def test_scheduled_runs_are_left_out(self):
+        text = '<scheduled-task name="morning-brief" file="/x">\nThis is an automated run.\nMake my brief.\n</scheduled-task>'
+        p = fx.write(self.projects / "-w" / "s-sched.jsonl", [
+            fx.user(text, "2026-11-18T10:00:00Z", origin={"kind": "task-notification"}),
+            fx.assistant("ok", "2026-11-18T10:00:01Z")])
+        fx.set_mtime(p, NOW - timedelta(days=1))
+        d = self.run_collect()
+        self.assertEqual(d["sessions"], [])
+        self.assertEqual(d["skipped"]["scheduled"], 1)
+
+    def test_session_already_on_a_card_is_not_taken_twice(self):
+        # The record in meta/synced was lost (a sync died between two batches),
+        # but the card on the board names the session.
+        self.transcript("s-oncard")
+        self.transcript("s-grew")
+        cards = {"c9": {"sessions": [{"id": "s-oncard", "date": "2026-11-10T10:06:00Z"},
+                                     {"id": "s-grew", "date": "2026-11-10T10:01:00Z"}]}}
+        d = collect.run(self.data, {}, self.projects, None, NOW, cards=cards)
+        self.assertEqual(self.ids(d), ["s-grew"])
+        self.assertEqual(d["sessions"][0]["known_cards"], ["c9"])
+        self.assertEqual(d["skipped"]["synced"], 1)
+
+    def test_exclude_by_repo_name(self):
+        self.transcript("s-keep", cwd="/work/proj")
+        self.transcript("s-named", cwd="/elsewhere/client-x/sub", project="-e-client-x-sub")
+        self.transcript("s-wt", cwd="/gone/secret-repo/.claude/worktrees/w1", project="-gone-secret")
+        cfg = self.data.config()
+        cfg["exclude"] = ["client-x", "secret-repo"]
+        self.data.save_config(cfg)
+        d = self.run_collect()
+        self.assertEqual(self.ids(d), ["s-keep"])
+        self.assertEqual(d["skipped"]["excluded"], 2)
+
     def test_exclude_by_path_and_glob(self):
         self.transcript("s-keep", cwd="/work/proj")
         self.transcript("s-secret", cwd="/work/client-x", project="-work-client-x")

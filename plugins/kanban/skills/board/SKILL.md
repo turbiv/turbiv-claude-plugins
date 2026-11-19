@@ -52,7 +52,7 @@ in the `show` output.
 | Add an idea or a card | `action: "set"` a new document, see below |
 | Merge A into B | see below |
 | Delete | `action: "delete"` with `if_version`. Ask first: it cannot be undone. Offer archive instead |
-| Stop tracking a folder | `kanban-tool exclude --data "<data>" --add <folder>`. No board write |
+| Stop tracking a folder | `kanban-tool exclude --data "<data>" --add <full path, or the folder's name>`. No board write. Cards that exist stay: offer to archive them |
 
 **A new card.** `doc_id`: the title in lower case with `-` for other characters, at most 40, then `-`
 and four random lower-case letters or digits. Fields: `title`, `status` (`idea` unless told otherwise),

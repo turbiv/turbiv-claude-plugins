@@ -78,7 +78,11 @@ MOCK = r"""
       id: id, path: col + "/" + id,
       get: async function () { return snapDoc(id, s[id]); },
       set: async function (d) { s[id] = JSON.parse(JSON.stringify(d)); emit(); },
-      update: async function (d) { if (!s[id]) throw { code: "invalid_argument" }; s[id] = merge(Object.assign({}, s[id]), d); emit(); },
+      update: async function (d) {
+        if (window.__failWrites) throw { code: "unavailable" };
+        if (!s[id]) throw { code: "invalid_argument" };
+        s[id] = merge(Object.assign({}, s[id]), d); emit();
+      },
       delete: async function () { delete s[id]; emit(); },
       onSnapshot: function (next) { var f = function () { next(snapDoc(id, s[id])); }; subs.push(f); setTimeout(f, 50); return function () {}; }
     };

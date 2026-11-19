@@ -166,7 +166,8 @@ last assistant text (cut to 1,200 characters), the count of turns, and the files
 `git log` since the last sync (20 lines), `git status --short` (20 lines) and the GitHub URL from the
 remote.
 
-Skipped: subagent sidechains, sessions with no real user prompt, sync sessions themselves, and every
+Skipped: subagent sidechains, sessions with no real user prompt, runs of scheduled tasks (the daily
+sync among them), and every
 session whose folder matches the exclude list in `config.json` (folder paths or globs). Setup shows the
 project folders it found and asks which to leave out; the default is none. `/kanban:board exclude
 <folder>` adds one later. Reason: the board may be shared, and a new user may have work they must not
@@ -245,7 +246,8 @@ IDEAS (2)          TODO (1)           DOING (3)                    DONE (4)
 - A click opens the card: summary, next step, the log, repos, links, sessions (each with a copy button
   for `claude --resume <id>`), folders and notes.
 - The owner and editors can: drag a card to another column, use a "Move to" menu (touch and keyboard),
-  edit the title, next step, notes and links, add a card, and archive one. Other viewers see no controls.
+  edit the title, next step and notes, add a card, close one (Done, Won't do, Archived) and delete one.
+  Other viewers see no controls. Links are added through `/kanban:board`, not on the page.
 - Phones: one column at a time, with tabs for the columns.
 - It follows the artifact rules: no seed data in the page, one `onSnapshot` per collection, a 10 s
   loading timer, a clear empty state ("No cards yet. Run /kanban:sync."), light and dark themes.
@@ -273,7 +275,8 @@ IDEAS (2)          TODO (1)           DOING (3)                    DONE (4)
    new topic makes a card; scratch sessions group by title and topic. It writes `summary`, `next_step`
    and one `log` line per session.
 4. `kanban-tool apply`, then one `ArtifactData batch` with `if_version` on every existing card, plus
-   `meta/board.last_sync` and `meta/synced`. On a version conflict it reads that card again and repeats that one write.
+   `meta/board.last_sync` and `meta/synced`. On a version conflict it starts the sync again from step 1,
+   once; the sessions are still in the processing files.
 5. `kanban-tool commit`.
 6. A report of at most 10 lines: cards updated, cards made, sessions skipped, sessions unparsed.
 
@@ -287,8 +290,8 @@ into a card.
 **`/kanban:board [request]`**, also triggered by "what am I working on?" or "where did I leave off on X?".
 
 - With no request: reads `cards.json`, shows Doing and stale cards in a few lines, and gives the board URL.
-- With a request: adds an idea, moves, renames, merges, splits or archives cards through `ArtifactData`,
-  then refreshes the cache.
+- With a request: adds an idea, moves, renames, merges, drops, archives or deletes cards through
+  `ArtifactData`, then refreshes the cache. It also adds folders to the exclude list.
 
 ## Tests
 

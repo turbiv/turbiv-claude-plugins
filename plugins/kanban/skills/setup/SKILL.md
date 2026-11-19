@@ -71,9 +71,11 @@ Skip this section when the board already has cards; offer `/kanban:sync` instead
 
 Follow `${CLAUDE_PLUGIN_ROOT}/skills/sync/SKILL.md`, steps 1 to 4, with these changes:
 
-- After `collect`, show the "By repo" line and ask once: "Is there a folder I should leave off the
-  board?" The board may be shared, so work the user must not publish stays off. For each folder named,
-  run `kanban-tool exclude --data "<data>" --add <folder path>`, then start again at step 1 of the sync.
+- After `collect`, show the "By repo" list (folders with their session counts) and ask once: "Is there
+  a folder I should leave off the board?" The board may be shared, so work the user must not publish
+  stays off. For each folder named, run `kanban-tool exclude --data "<data>" --add <folder>` with the
+  full path from the list (a folder's name alone also works, and covers every folder of that name).
+  Then start again at step 1 of the sync and check that the folder is gone from the list.
 - Before `apply`, show the proposed cards as a table: title, column, repos, number of sessions, and the
   next step. Then list in one line how many sessions you would skip and the main reasons. Ask: "Write
   these cards to the board?" Take corrections (rename, merge, split, drop, another column) and show the

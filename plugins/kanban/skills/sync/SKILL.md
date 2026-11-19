@@ -32,7 +32,9 @@ With the argument `unattended` (the daily task), ask nothing: follow the "Unatte
    `query.limit: 1000`.
 
 3. Run `kanban-tool collect --data "<data>"`.
-   - "Nothing new": tell the user the board is up to date and stop. The tool has closed the sync.
+   - "Nothing new": the tool has closed the sync and brought the local copy in line with the board. Do
+     the one board write it prints (`last_sync` in `meta/board`, with the version from step 2), tell the
+     user the board is up to date, and stop.
    - Otherwise it prints the cards on the board and the new sessions. When they are too long to print,
      it names two files instead: read both in full.
    - Sessions marked `UNPARSED` could not be read by the tool. For each, read the last 20 KB of the
@@ -56,8 +58,11 @@ With the argument `unattended` (the daily task), ask nothing: follow the "Unatte
 6. Write the board. Call `ArtifactData` with `action: "batch"`, the board URL, and `writes` set to the
    printed list, unchanged. Several lists: one call per list, in the printed order.
    - If a write fails because a version changed (someone edited a card meanwhile): start again at
-     step 1. The sessions are not lost.
+     step 1, once. The sessions are not lost. This also holds in an unattended run.
    - If the tool refuses for another reason: stop and report. Do not run step 7.
+   - Never run step 7 when the batch was not written. If that happened in an earlier run and sessions
+     are missing from the board, run `kanban-tool collect --data "<data>" --scan-days 30` in step 3: it
+     looks at the last 30 days again and leaves out what the board already has.
 
 7. Run `kanban-tool commit --data "<data>"`. It updates the local copy that the session-start hook
    reads. If it says older sessions wait, run the sync once more.
@@ -79,7 +84,7 @@ With the argument `unattended` (the daily task), ask nothing: follow the "Unatte
 - When a session's card is unclear, make a new card. New cards carry a "new" mark on the board, so the
   user sees and fixes them.
 - If a tool call is refused or `ArtifactData` is missing: stop, say what was refused in one line. Do not
-  retry and do not work around it.
+  retry and do not work around it. (A version conflict in step 6 is not a refusal: see there.)
 
 ## Limits
 

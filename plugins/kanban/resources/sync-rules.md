@@ -30,15 +30,33 @@ For each session, in this order:
 3. If several new sessions share a topic, make one new card for all of them.
 4. Only when no card fits, make a new card.
 
-Sessions with no repo (scratch sessions) are grouped by topic and title in the same way. A one-off
-question ("format an SD card", "which printer is best value") is not a work stream. Put it in `skip`
-with a short reason, unless the same topic comes back in several sessions; then it is a card.
+Sessions with no repo (scratch sessions) are grouped by topic and title in the same way.
+
+Small sessions that share one purpose make one card. Seven short sessions about a new laptop (keys,
+tools, settings) are one card, "New MacBook setup", not seven one-off questions.
+
+The planning of a big project (its roadmap, research, status and coordination sessions) is a work
+stream of its own: one card such as "Accounting roadmap and research". It is still not the repo: the
+build streams of that project have their own cards.
+
+A session that only talked about something the user may build is an `idea` card. A factual question
+with nothing to build ("how do I keep the Mac awake?") is a one-off: put it in `skip`, unless the topic
+comes back in several sessions; then it is a card.
 
 A long session that clearly worked on two or three separate streams goes on each of those cards, with
 its own log line for each. Three cards is the most.
 
-Put a session in `skip` when it is: a one-off question, small talk, a test, a session that only ran
-tools for another session, or a session about the board itself with no lasting result.
+Put a session in `skip`, with a short reason, when it is:
+
+- a one-off question or small talk,
+- a false start: no reply, or stopped right after it began,
+- a copy of another session (a fork with the same prompts and the same ending). Keep the copy that
+  went further; when the endings differ, keep both,
+- a test, or a session that only ran tools for another session,
+- a session about the board itself with no lasting result.
+
+The owner has many projects and wants to see where each one was left. When a topic had real work,
+prefer a card over `skip`.
 
 ## What to write
 
@@ -48,7 +66,8 @@ Write for the user who comes back after three weeks and remembers nothing.
   exists and works, and what is open. When the last session looks finished, say "Looks finished".
   Rewrite it whole each time; it is not a history.
 - `next_step` (at most 200): the one next thing to do, as an instruction. Take it from what the last
-  session left open or what the user said they would do next. If nothing is open, write "".
+  session left open or what the user said they would do next. If nothing is open, write "". A `done`
+  card may keep a next step for a small loose end ("merge the branch if it is still open").
 - `log` for each session (at most 240): what was done in that session, in the past tense, one sentence.
   Name concrete things (files, features, decisions). Do not write "Worked on the dashboard".
 - `status` for a new card only: `doing` when the work is active or was left in the middle; `done` when
@@ -59,8 +78,8 @@ Use plain words. No praise, no filler, no session ids in the text.
 
 ## Never write secrets
 
-Do not put tokens, passwords, keys, private addresses or account numbers into any card field. The board
-may be shared. `kanban-tool apply` refuses text that looks like a token, but you are the first guard.
+Do not put tokens, passwords, keys, account numbers, or the IP addresses and host names of private
+machines into any card field. File paths, branch names and commit ids are fine. The board may be shared. `kanban-tool apply` refuses text that looks like a token, but you are the first guard.
 If a session was about a secret, describe the work without the value ("rotated the Home Assistant
 token").
 
@@ -88,7 +107,7 @@ token").
       "sessions": [ { "id": "a8b48e58", "log": "..." }, { "id": "3cf21813", "log": "..." } ]
     }
   ],
-  "skip": [ { "id": "0c6b0ebb", "reason": "one-off question" } ]
+  "skip": [ { "id": "0c6b0ebb", "reason": "one-off question about keep-awake" } ]
 }
 ```
 

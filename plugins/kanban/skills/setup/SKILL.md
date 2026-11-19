@@ -78,7 +78,13 @@ Follow `${CLAUDE_PLUGIN_ROOT}/skills/sync/SKILL.md`, steps 1 to 4, with these ch
   next step. Then list in one line how many sessions you would skip and the main reasons. Ask: "Write
   these cards to the board?" Take corrections (rename, merge, split, drop, another column) and show the
   table again when it changed much.
-- After the user's yes, do steps 5 to 8 of the sync.
+- With the table, ask whether a project is missing. A project with no session in the last 30 days (or
+  whose sessions ran on another machine) is not in the digest. For each one the user names, read its
+  README and `git log -8`, and propose a card (`todo`, or `idea` when nothing is built). Say in its
+  summary that it comes from the git history. Write these cards as `/kanban:board` writes a new card,
+  with `repos`, `folders` and a GitHub link set, in the same `ArtifactData` batch or right after it.
+- After the user's yes, do steps 5 to 8 of the sync. If you added cards by hand, refresh the local copy
+  as `/kanban:board` does.
 
 ## 5. The daily sync
 

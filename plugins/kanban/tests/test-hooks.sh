@@ -17,7 +17,9 @@ check() { # check <name> <command...>
   name=$1; shift
   if "$@" >/dev/null 2>&1; then ok "$name"; else fail "$name"; fi
 }
-key() { printf %s "$1" | tr -c 'A-Za-z0-9' '-'; }
+TOOL_LIB="$HERE/../lib"
+# The key as kanban-tool makes it. The hook must find the same file.
+key() { python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); from kanban import cache; print(cache.key(sys.argv[2]), end="")' "$TOOL_LIB" "$1"; }
 
 # run <data dir> <project dir> <event> : stdin is passed on.
 # Leaves stdout in $TMP/out, stderr in $TMP/err, the exit code in $TMP/rc.
@@ -154,6 +156,12 @@ check "exact context: not printed in a subfolder" sh -c "! grep -q EXACT-GIT '$T
 echo "HOME-CARD" >"$D/context/tree/$(key "$FAKEHOME").txt"
 echo "$SAMPLE" | run "$D" "$FAKEHOME/git/other" start
 check "home context: never printed below home" sh -c "! grep -q HOME-CARD '$TMP/out'"
+
+# 9b. A folder name with spaces and non-ASCII letters: hook and tool agree on the key.
+ODD2="$FAKEHOME/git/Mökki projekti (v2)"; mkdir -p "$ODD2"
+echo "ODD-CARD" >"$D/context/tree/$(key "$ODD2").txt"
+echo "$SAMPLE" | run "$D" "$ODD2" start
+check "odd folder name: context is found" grep -q ODD-CARD "$TMP/out"
 
 # 10. The nudge.
 newdata 10

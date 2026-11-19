@@ -30,7 +30,8 @@ printf '{"ev":"%s","ts":"%s","dir":"%s","in":%s}\n' "$EV" "$TS" "$ESC" "$IN" >>"
 
 # --- Session start: print the cards of this folder ---------------------
 # Plain stdout of a SessionStart hook is added to Claude's context.
-key() { printf %s "$1" | tr -c 'A-Za-z0-9' '-'; }
+# LC_ALL=C: byte by byte, the same as kanban-tool does it.
+key() { printf %s "$1" | LC_ALL=C tr -c 'A-Za-z0-9' '-'; }
 
 # A worktree counts as its main repo.
 case "$DIR" in */.claude/worktrees/*) DIR=${DIR%%/.claude/worktrees/*} ;; esac

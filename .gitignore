@@ -5,3 +5,9 @@ plugins/*/.claude-plugin/types/
 
 # flow work items are local, never committed
 work-items/
+
+# Python caches (tests)
+__pycache__/
+
+# openai-images output (each project decides whether to keep its images)
+generated-images/

@@ -21,6 +21,11 @@
       "name": "kanban",
       "source": "./plugins/kanban",
       "description": "A kanban board of your work streams that updates itself from your Claude sessions. Each card says where you left off and what comes next"
+    },
+    {
+      "name": "openai-images",
+      "source": "./plugins/openai-images",
+      "description": "Generate and edit images with OpenAI's GPT Image models from Claude Code, with the cost of every image shown"
     }
   ]
 }

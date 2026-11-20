@@ -1,0 +1,48 @@
+{
+ "data": [
+  {
+   "author": "willswill",
+   "body": "Do it in bios! I can't speak for all motherboards, but mine was very intuitive, and it's nice to not have to depend on a program booting on startup or anything like that. You'd of course need a Z motherboard though.  I'd try using the \"voltage offset\" setting first (set it so some negative number as stated in the article: -30 mV is probably a safe start) and see if your temps back off at all. After that I'd try changing your short-power limit (\"Power limit 2\"), as this is maybe what is causing your processor to run really hot for short bursts. As stated above, out of the box it's 210 Watts (!), but you should be able to lower it to maybe 125 Watts without loosing too much burst power if you do the aforementioned undervolt. If that's still not cutting it, you can back off both of them a bit until you're happy, and you'll be subjected to the performance hits as stated in the table. Good luck!",
+   "created_utc": 1697457453,
+   "id": "k53ri4g",
+   "link_id": "t3_wi7uhk",
+   "parent_id": "t1_k4e6ti6",
+   "retrieved_on": 1697457467,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "willswill",
+   "body": "I let the undervolt curve decide voltages at each power limit - was much less labor intensive then trying to set voltages/clocks directly. I don't remember exactly for 35W what my voltage was under load, but I did mention up there that at 15W my voltage was 725mV for multithreaded loads, so I'd imagine multithreaded at 35W was probably around 900mV, but don't quote me on that. It sounds like this would be a good application for your 9900K!",
+   "created_utc": 1692542428,
+   "id": "jx031mj",
+   "link_id": "t3_wi7uhk",
+   "parent_id": "t1_jwyql9d",
+   "retrieved_on": 1692542439,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "willswill",
+   "body": "Thank you! I'd found hints of the 9900K's single-core efficiency prowess around, but it was fun to test it myself. [This 5700G Techpowerup Review](https://www.techpowerup.com/review/amd-ryzen-7-5700g/22.html) shows the single-core tests of the 9900K blowing even more recent processors out of the water on efficiency (Look at the \"Energy Use: Single Threaded\" graph), which I think is pretty cool.\n\n&#x200B;\n\nI was also impressed on how much undervolting did. I didn't include this in the results above, but at stock power limits, going from stock voltage to a -50 mV offset got me about 3% more performance and dropped my peak temps from 100C (presumably throttling) to the 93C. Undervolting really is great!",
+   "created_utc": 1659978279,
+   "id": "ijgpj9q",
+   "link_id": "t3_wi7uhk",
+   "parent_id": "t1_ijao2ef",
+   "retrieved_on": 1662728249,
+   "score": 2,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "onliandone",
+   "body": "Awesome effort. I had no idea the 9900K could be this effective in single core workload.\n\nWhat I like to do with my processors is to undervolt them (I saw  that you did that as well) so that the clock remains the same or close. That's another area where you find pages of overclocking discussions, but only rarely even just sound default values.",
+   "created_utc": 1659868566,
+   "id": "ijao2ef",
+   "link_id": "t3_wi7uhk",
+   "parent_id": "t3_wi7uhk",
+   "retrieved_on": 1662737217,
+   "score": 2,
+   "subreddit": "buildapc"
+  }
+ ]
+}

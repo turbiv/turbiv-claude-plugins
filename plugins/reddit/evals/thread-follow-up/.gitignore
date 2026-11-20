@@ -1,0 +1,3 @@
+# The eval runner writes each resumed run next to the history file; only turn1.jsonl is the case.
+history/*
+!history/turn1.jsonl

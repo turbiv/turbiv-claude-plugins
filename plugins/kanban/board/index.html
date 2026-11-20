@@ -123,6 +123,15 @@ h1 { font-family: var(--font-head); font-size: 24px; font-weight: 600; margin: 0
 .card.stale { border-color: var(--stale); }
 .card.cold { border-color: var(--cold); }
 .card.dragging { opacity: .4; }
+.card.changed { outline: 2px solid var(--accent); outline-offset: -1px; }
+.badge.chg { background: var(--accent); color: var(--accent-ink); }
+.card .from { font-size: 12px; color: var(--accent); font-weight: 500; margin-top: -3px; }
+.changes { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.changes .btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.changes .btn { color: var(--ink); }
+.removed { background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 8px 12px; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.removed b { color: var(--ink); font-weight: 600; }
+.dlg .chg-note { color: var(--accent); font-weight: 600; }
 .card .t { font-weight: 600; font-size: 14.5px; line-height: 1.3; overflow-wrap: anywhere; display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
 .card .t span:first-child { min-width: 0; }
 .badge { font-size: 10.5px; font-weight: 600; letter-spacing: .06em; background: var(--accent-soft); color: var(--accent); border-radius: 5px; padding: 2px 6px; flex: none; }
@@ -135,6 +144,48 @@ h1 { font-family: var(--font-head); font-size: 24px; font-weight: 600; margin: 0
 .age { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; margin-left: auto; border-radius: 5px; padding: 1px 6px; }
 .age.stale { background: var(--stale-soft); color: var(--stale); font-weight: 600; }
 .age.cold { background: var(--cold-soft); color: var(--cold); font-weight: 600; }
+
+/* Project colors. Each project (a card's first repo) has one of eight hues,
+   stored in meta/projects so it never changes. The card gets a left stripe in
+   it; repo tags and filter chips get a dot, and tags a tint. Tag text stays in
+   --ink and the project name is always shown, so color is never the only cue.
+   The hues are a categorical palette checked for color-blind separation, with
+   steps chosen for each theme. */
+:root {
+  --proj-1: #2a78d6; --proj-2: #eb6834; --proj-3: #1baf7a; --proj-4: #eda100;
+  --proj-5: #e87ba4; --proj-6: #008300; --proj-7: #6250d6; --proj-8: #e34948;
+  --proj-mix: 16%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --proj-1: #3987e5; --proj-2: #d95926; --proj-3: #199e70; --proj-4: #c98500;
+    --proj-5: #d55181; --proj-6: #0ca30c; --proj-7: #9085e9; --proj-8: #e66767;
+    --proj-mix: 26%;
+  }
+}
+:root[data-theme="dark"] {
+  --proj-1: #3987e5; --proj-2: #d95926; --proj-3: #199e70; --proj-4: #c98500;
+  --proj-5: #d55181; --proj-6: #0ca30c; --proj-7: #9085e9; --proj-8: #e66767;
+  --proj-mix: 26%;
+}
+.card { border-left-width: 4px; padding-left: 10px; }
+.card.has-proj { border-left-color: var(--pc); }
+.repo.has-proj { color: var(--ink); background: color-mix(in oklab, var(--pc) var(--proj-mix), var(--surface)); }
+.repo.has-proj::before, .chip.has-proj::before {
+  content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--pc); margin-right: 5px; vertical-align: 1px;
+}
+.chip.has-proj::before { width: 8px; height: 8px; margin-right: 6px; }
+.chip.has-proj[aria-pressed="true"]::before { box-shadow: 0 0 0 1.5px var(--bg); }
+.proj-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; }
+.proj-row > .repo { justify-self: start; }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.sw { width: 22px; height: 22px; border-radius: 50%; border: 0; padding: 0; background: var(--pc); }
+.sw[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
+@media (max-width: 520px) {
+  .proj-row { grid-template-columns: minmax(0, 1fr); }
+  .sw { width: 28px; height: 28px; }
+}
 
 /* Page states */
 .state { background: var(--surface); border: 1px dashed var(--line); border-radius: 14px; padding: 28px 20px; text-align: center; color: var(--muted); }
@@ -214,6 +265,7 @@ a { color: var(--accent); }
 
   <div class="tabs" id="tabs" role="tablist" aria-label="Columns" hidden></div>
   <div class="state" id="state"><strong>Loading the board</strong>Reading the cards.</div>
+  <div class="removed" id="removed" hidden></div>
   <div class="cols" id="cols" hidden></div>
 </div>
 
@@ -234,7 +286,8 @@ a { color: var(--accent); }
 <script>
 (function () {
   "use strict";
-  var PAGE_VERSION = 3;
+  var PAGE_VERSION = 5;
+  var SEEN_AFTER_MS = 10000;  // the page counts as seen after 10 s on screen
   var COLUMNS = [
     { key: "idea", label: "Ideas", empty: "No ideas parked here." },
     { key: "todo", label: "Todo", empty: "Nothing is queued." },
@@ -250,10 +303,72 @@ a { color: var(--accent); }
   var S = {
     db: null, canEdit: false, cards: [], meta: {}, loaded: false, slow: false, dead: null,
     repo: "", query: "", staleOnly: false, showArchived: false, tab: "doing",
-    openId: null, dirty: false, base: null, openJson: ""
+    openId: null, dirty: false, base: null, openJson: "", openChange: null,
+    // What this viewer has seen: `seenBase` is the copy this visit compares with,
+    // `copy` mirrors the stored copy. See the "seen" section below.
+    uid: null, seenKnown: false, seenLocal: false, seenBase: null, seenAt: "", copy: null, copyExists: false, copyDirty: false, remote: null,
+    seenTimer: null, diff: null, changesOnly: false
   };
   var el = function (id) { return document.getElementById(id); };
   var queues = {};
+
+  // ---- seen:begin
+  // "What changed since you last looked": the board now against the viewer's
+  // copy of the board as they last saw it. Pure functions, no DOM; the tests
+  // cut this block out and run it in Node (tests/test_board_seen.py).
+  // A copy entry: t title, s status, h and n hashes of summary and next step,
+  // x the id of the newest session. A null entry is a card the viewer removed.
+  function fnv(s) {
+    var h = 0x811c9dc5;
+    s = typeof s === "string" ? s : "";
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return ("0000000" + (h >>> 0).toString(16)).slice(-8);
+  }
+  function entryOf(c) {
+    var t = function (v) { return typeof v === "string" ? v : ""; };
+    var first = Array.isArray(c.sessions) && c.sessions[0] && typeof c.sessions[0] === "object" ? c.sessions[0] : {};
+    return { t: t(c.title), s: t(c.status), h: fnv(c.summary), n: fnv(c.next_step), x: t(first.id) };
+  }
+  function snapshotOf(cards) {
+    var out = {};
+    cards.forEach(function (c) { out[c.id] = entryOf(c); });
+    return out;
+  }
+  function diffBoard(base, cards) {
+    var d = { byId: {}, removed: [], counts: { "new": 0, moved: 0, renamed: 0, updated: 0, removed: 0 }, total: 0 };
+    if (!base || typeof base !== "object") return d;
+    var here = {};
+    cards.forEach(function (c) {
+      here[c.id] = true;
+      var was = base[c.id], now = entryOf(c), kinds = [];
+      if (!was || typeof was !== "object") kinds.push("new");
+      else {
+        if (was.s !== now.s) kinds.push("moved");
+        if (was.t !== now.t) kinds.push("renamed");
+        if (was.h !== now.h || was.n !== now.n || was.x !== now.x) kinds.push("updated");
+      }
+      if (!kinds.length) return;
+      d.byId[c.id] = { kinds: kinds, from: kinds[0] === "new" ? "" : String(was.s || "") };
+      kinds.forEach(function (k) { d.counts[k]++; });
+      d.total++;
+    });
+    Object.keys(base).forEach(function (id) {
+      var was = base[id];
+      if (here[id] || !was || typeof was !== "object") return;
+      d.removed.push({ id: id, title: typeof was.t === "string" ? was.t : "" });
+      d.counts.removed++;
+      d.total++;
+    });
+    return d;
+  }
+  // `card` (optional): the card as it is now. A patch for a card the base does
+  // not know starts from that card, so the other fields do not read as changed.
+  function patchBase(base, id, patch, card) {
+    if (patch === null) { base[id] = null; return; }
+    var old = base[id] && typeof base[id] === "object" ? base[id] : card ? entryOf(card) : {};
+    base[id] = Object.assign({}, old, patch);
+  }
+  // ---- seen:end
 
   // ---------- small helpers ----------
   function h(tag, attrs, kids) {
@@ -337,15 +452,153 @@ a { color: var(--accent); }
     if (c.status !== status) { f.status = status; f.status_changed_at = new Date().toISOString(); }
     if (order !== undefined && order !== c.order) f.order = order;
     if (c.is_new) f.is_new = false;
-    if (Object.keys(f).length) updateCard(id, f);
+    if (!Object.keys(f).length) return;
+    var patch = f.status ? { s: status } : null;
+    if (patch) ownEdit(id, patch);
+    updateCard(id, f).then(function (ok) { if (ok && patch) saveOwnEdit(id, patch); });
   }
   function byId(id) { for (var i = 0; i < S.cards.length; i++) if (S.cards[i].id === id) return S.cards[i]; return null; }
+
+  // ---------- seen: what this viewer has already seen ----------
+  // The copy lives at data/users/<id>/seen, so one "last seen" holds on every
+  // device of the viewer. Viewers who may not write there (Viewer, Commenter,
+  // outside visitors) keep it in this browser instead. The copy is saved after
+  // SEEN_AFTER_MS on screen, on "Mark all seen", when a card is opened, and on
+  // each of the viewer's own edits, so their own changes never show as changes.
+  // The highlights of this visit stay until the next visit.
+  function seenPath() { return "data/users/" + S.uid + "/seen"; }
+  function readLocalSeen() {
+    try { var v = JSON.parse(pref("seen") || "null"); return v && typeof v === "object" ? v : null; } catch (e) { return null; }
+  }
+  function canon(cards) {
+    return JSON.stringify(Object.keys(cards || {}).sort().map(function (k) {
+      var e = cards[k];
+      return [k, e && typeof e === "object" ? [e.t, e.s, e.h, e.n, e.x] : null];
+    }));
+  }
+  async function loadSeen(user) {
+    var doc = null;
+    try { S.uid = user ? await user.id() : null; } catch (e) { S.uid = null; }
+    if (S.uid) {
+      try {
+        var snap = await S.db.doc(seenPath()).get();
+        if (snap.exists) { doc = snap.data() || null; S.copyExists = true; }
+        // "Missing" from the cache (offline, a new device) is not an answer:
+        // saving a fresh copy over the real one would hide the unseen changes.
+        else if (snap.metadata && snap.metadata.fromCache) return;
+      } catch (e) { return; /* unknown: no highlights, and never save over it */ }
+    } else S.seenLocal = true;
+    if (!doc) doc = readLocalSeen();
+    if (doc && doc.cards && typeof doc.cards === "object") {
+      S.seenBase = JSON.parse(JSON.stringify(doc.cards));
+      S.copy = JSON.parse(JSON.stringify(doc.cards));
+      S.seenAt = str(doc.at);
+    }
+    S.seenKnown = true;
+    seenReady();
+    if (S.uid && !S.seenLocal) {
+      // The same viewer on another device: their own edits there are written
+      // into the copy. Take those in, so they do not light up here either.
+      S.db.doc(seenPath()).onSnapshot(function (snap) {
+        var d = snap.exists ? snap.data() : null;
+        S.remote = d && d.cards && typeof d.cards === "object" ? d.cards : null;
+        if (adoptRemote()) render();
+      }, function () { /* without it, only this device's edits are known */ });
+    }
+  }
+  // An entry in the stored copy that this page did not write, and that matches
+  // the card as it is now, was seen (or made) on another device: adopt it.
+  function adoptRemote() {
+    if (!S.remote || !S.copy || !S.seenBase) return false;
+    var changed = false;
+    Object.keys(S.remote).forEach(function (id) {
+      var e = S.remote[id], mine = canon({ a: S.copy[id] }), theirs = canon({ a: e });
+      if (theirs === mine) return;
+      var c = byId(id);
+      var fits = e && typeof e === "object" ? c && theirs === canon({ a: entryOf(c) }) : !c;
+      if (!fits) return;   // not on this device yet; checked again at the next cards snapshot
+      S.copy[id] = e === null ? null : Object.assign({}, e);
+      S.seenBase[id] = e === null ? null : Object.assign({}, e);
+      changed = true;
+    });
+    return changed;
+  }
+  // Runs when the copy or the cards arrive.
+  function seenReady() {
+    if (!S.seenKnown || !S.loaded || S.dead) return;
+    adoptRemote();
+    if (!S.seenBase) {           // first visit: nothing to compare with yet
+      S.seenBase = snapshotOf(S.cards); S.seenAt = new Date().toISOString();
+      saveSeen();
+    }
+    render();
+    armSeenTimer();
+  }
+  function armSeenTimer() {
+    clearTimeout(S.seenTimer);
+    if (!S.seenKnown || !S.loaded || S.dead || document.visibilityState !== "visible") return;
+    S.seenTimer = setTimeout(saveSeen, SEEN_AFTER_MS);
+  }
+  function storeCopy(fn) {
+    function local() { pref("seen", JSON.stringify({ at: new Date().toISOString(), cards: S.copy })); }
+    if (S.seenLocal) { local(); return Promise.resolve(); }
+    var prev = queues.__seen || Promise.resolve();
+    var next = prev.then(function () { return fn(S.db.doc(seenPath())); }).then(function () { S.copyExists = true; }, function (e) {
+      // Refused: this viewer may not write their own folder. Keep it here.
+      if (e && e.code === "invalid_argument") { S.seenLocal = true; local(); return; }
+      // Anything else (network, rate limit): the stored copy is behind S.copy.
+      // The next save writes it whole, after another 10 s on screen.
+      S.copyDirty = true;
+      armSeenTimer();
+    });
+    queues.__seen = next;
+    return next;
+  }
+  // Save the board as it is now as the viewer's copy, when it differs.
+  function saveSeen() {
+    if (!S.seenKnown || !S.loaded) return;
+    var now = snapshotOf(S.cards);
+    if (S.copy && !S.copyDirty && canon(now) === canon(S.copy)) return;
+    S.copy = now; S.copyDirty = false;
+    var at = new Date().toISOString();
+    storeCopy(function (ref) { return ref.set({ at: at, cards: now }); });
+  }
+  // The viewer's own change to a card: it does not count as a change for them.
+  function ownEdit(id, patch) {
+    if (S.seenBase) patchBase(S.seenBase, id, patch, byId(id));
+  }
+  function saveOwnEdit(id, patch) {
+    if (!S.seenKnown || !S.copy) return;
+    var before = canon({ a: S.copy[id] });
+    patchBase(S.copy, id, patch, byId(id));
+    if (canon({ a: S.copy[id] }) === before) return;
+    var one = {}; one[id] = S.copy[id];
+    storeCopy(function (ref) {
+      return S.copyExists ? ref.update({ cards: one }) : ref.set({ at: new Date().toISOString(), cards: S.copy });
+    });
+  }
+  function seenAll() {
+    S.seenBase = snapshotOf(S.cards); S.seenAt = new Date().toISOString(); S.changesOnly = false;
+    saveSeen(); render();
+  }
+  function colLabel(key) { return (COLUMNS.filter(function (x) { return x.key === key; })[0] || {}).label || key; }
+  var KIND_LABEL = { "new": "NEW", moved: "MOVED", renamed: "RENAMED", updated: "UPDATED" };
+  function changeNote(ch) {
+    if (!ch) return "";
+    var k = ch.kinds[0];
+    if (k === "new") return "New since you last looked";
+    if (k === "moved") return "Moved from " + colLabel(ch.from) + " since you last looked";
+    if (k === "renamed") return "Renamed since you last looked";
+    return "Updated since you last looked";
+  }
 
   // ---------- filtering ----------
   function visible() {
     var q = S.query.trim().toLowerCase();
+    var changed = S.changesOnly && S.diff ? S.diff.byId : null;
     return S.cards.filter(function (c) {
-      if (isClosed(c.status) && !S.showArchived) return false;
+      if (changed && !changed[c.id]) return false;
+      if (isClosed(c.status) && !S.showArchived && !changed) return false;
       if (S.repo === "\u0000none" ? arr(c.repos).length : (S.repo && arr(c.repos).indexOf(S.repo) < 0)) return false;
       if (S.staleOnly && !staleness(c)) return false;
       if (q) {
@@ -356,9 +609,90 @@ a { color: var(--accent); }
     });
   }
 
+  // ---------- project colors ----------
+  // A card's project is its first repo. meta/projects holds {colors: {repo: 1..8}}.
+  // A project without a stored color gets the least-used one (ties: the lowest).
+  // Projects with more cards go first, so on a new board the biggest get the most
+  // distinct hues. The owner's page then stores the color, so it never changes.
+  // Past eight projects, colors are reused.
+  var PROJ_NAMES = ["blue", "orange", "aqua", "yellow", "pink", "green", "violet", "red"];
+  var P = { stored: Object.create(null), loaded: false, exists: false, saving: false, failed: false, map: Object.create(null) };
+  function validSlot(v) { return typeof v === "number" && v >= 1 && v <= PROJ_NAMES.length && Math.floor(v) === v; }
+  function storedSlot(repo) {
+    return Object.prototype.hasOwnProperty.call(P.stored, repo) && validSlot(P.stored[repo]) ? P.stored[repo] : 0;
+  }
+  function assignProjects() {
+    var first = Object.create(null), n = Object.create(null);
+    S.cards.forEach(function (c) {
+      var t = time(c.created) || time(c.last_touched) || Infinity;
+      arr(c.repos).forEach(function (r) {
+        if (typeof r !== "string" || !r) return;
+        n[r] = (n[r] || 0) + 1;
+        if (!(first[r] <= t)) first[r] = t;
+      });
+    });
+    var repos = Object.keys(first).sort(function (a, b) { return n[b] - n[a] || first[a] - first[b] || a.localeCompare(b); });
+    var map = Object.create(null), used = PROJ_NAMES.map(function () { return 0; });
+    repos.forEach(function (r) { var s = storedSlot(r); if (s) { map[r] = s; used[s - 1]++; } });
+    repos.forEach(function (r) {
+      if (map[r]) return;
+      var best = 0;
+      for (var i = 1; i < used.length; i++) if (used[i] < used[best]) best = i;
+      map[r] = best + 1; used[best]++;
+    });
+    P.map = map;
+  }
+  function projVar(repo) { var s = P.map[repo]; return s ? "--pc: var(--proj-" + s + ")" : null; }
+  function repoTag(r) {
+    var v = projVar(str(r));
+    return h("span", { class: "repo" + (v ? " has-proj" : ""), style: v, text: str(r) });
+  }
+  function paintCard(node, c) {
+    var v = projVar(str(arr(c.repos)[0]));
+    if (v) { node.classList.add("has-proj"); node.setAttribute("style", v); }
+  }
+  function writeProjects(colors) {
+    var ref = S.db.collection("meta").doc("projects");
+    return P.exists ? ref.update({ colors: colors }) : ref.set({ colors: colors });
+  }
+  // The owner's page stores colors for new projects. Read-only viewers compute the same ones.
+  function saveNewProjects() {
+    if (!S.canEdit || !S.loaded || !P.loaded || P.saving || P.failed || S.dead) return;
+    var add = Object.keys(P.map).filter(function (r) { return storedSlot(r) !== P.map[r]; });
+    if (!add.length) return;
+    var colors = Object.assign(Object.create(null), P.stored);
+    add.forEach(function (r) { colors[r] = P.map[r]; });
+    P.saving = true;
+    writeProjects(colors).then(function () { P.saving = false; }, function () { P.saving = false; P.failed = true; });
+  }
+  function setProjectColor(repo, slot) {
+    if (!S.canEdit || !P.loaded || storedSlot(repo) === slot) return;
+    var colors = Object.assign(Object.create(null), P.stored);
+    colors[repo] = slot;
+    write("\u0000projects", function () { return writeProjects(colors); });
+  }
+  function repoSection(repos) {
+    if (!S.canEdit || !P.loaded) return h("div", { class: "repos" }, repos.map(repoTag));
+    return h("div", { class: "rows" }, repos.map(function (r) {
+      r = str(r);
+      return h("div", { class: "proj-row" }, [repoTag(r),
+        h("div", { class: "swatches", role: "group", "aria-label": "Color for " + r }, PROJ_NAMES.map(function (name, i) {
+          var on = P.map[r] === i + 1;
+          return h("button", {
+            class: "sw", type: "button", "aria-pressed": String(on), "aria-label": name, title: name,
+            style: "--pc: var(--proj-" + (i + 1) + ")", onclick: function () { setProjectColor(r, i + 1); }
+          });
+        }))]);
+    }));
+  }
+
   // ---------- render ----------
   function render() {
+    assignProjects(); saveNewProjects();
     el("board-title").textContent = str(S.meta.title) || "Kanban";
+    S.diff = diffBoard(S.seenKnown && S.loaded ? S.seenBase : null, S.cards);
+    if (!S.diff.total) S.changesOnly = false;
+    renderRemoved();
     renderStatus();
     var st = el("state"), cols = el("cols");
     if (S.dead) {
@@ -384,7 +718,9 @@ a { color: var(--accent); }
     st.hidden = true; cols.hidden = false; el("tabs").hidden = false;
     renderChips();
     var list = visible();
-    var shown = COLUMNS.filter(function (c) { return !c.closed || S.showArchived; });
+    var shown = COLUMNS.filter(function (c) {
+      return !c.closed || S.showArchived || (S.changesOnly && list.some(function (x) { return x.status === c.key; }));
+    });
     if (!shown.some(function (c) { return c.key === S.tab; })) S.tab = "doing";
     cols.style.setProperty("--ncols", shown.length);
     var tabs = el("tabs"); tabs.replaceChildren();
@@ -410,6 +746,27 @@ a { color: var(--accent); }
     if (S.meta.last_sync) box.appendChild(h("span", { text: "synced " + ago(S.meta.last_sync), title: dateLabel(S.meta.last_sync) }));
     else box.appendChild(h("span", { text: "not synced yet" }));
     if (S.slow) box.appendChild(h("span", { class: "note", text: "may be out of date" }));
+    var d = S.diff;
+    if (d && d.total) {
+      var parts = [["new", "new"], ["moved", "moved"], ["renamed", "renamed"], ["updated", "updated"], ["removed", "removed"]]
+        .filter(function (p) { return d.counts[p[0]]; }).map(function (p) { return d.counts[p[0]] + " " + p[1]; });
+      var since = S.seenAt ? " (" + ago(S.seenAt) + ")" : "";
+      box.appendChild(h("span", { class: "changes" }, [
+        h("button", {
+          class: "btn small", type: "button", id: "changes-toggle", "aria-pressed": String(S.changesOnly),
+          title: S.changesOnly ? "Show the whole board" : "Show only what changed",
+          onclick: function () { S.changesOnly = !S.changesOnly; render(); }
+        }, ["Since you last looked" + since + ": ", h("b", { text: parts.join(" · ") })]),
+        h("button", { class: "btn small", type: "button", id: "seen-all", text: "Mark all seen", onclick: seenAll })
+      ]));
+    }
+  }
+  function renderRemoved() {
+    var box = el("removed"), d = S.diff;
+    if (!S.changesOnly || !d || !d.removed.length || S.dead || !S.loaded) { box.hidden = true; return; }
+    box.hidden = false;
+    box.replaceChildren(h("b", { text: "Removed or merged since you last looked: " }),
+      document.createTextNode(d.removed.map(function (r) { return r.title || "Untitled"; }).join(", ")));
   }
 
   function renderChips() {
@@ -424,8 +781,9 @@ a { color: var(--accent); }
     var names = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a] || a.localeCompare(b); });
     if (S.repo && S.repo !== "\u0000none" && !counts[S.repo]) S.repo = "";
     function chip(label, n, val) {
+      var pv = val && val !== "\u0000none" ? projVar(val) : null;
       return h("button", {
-        class: "chip", type: "button", "aria-pressed": String(S.repo === val),
+        class: "chip" + (pv ? " has-proj" : ""), style: pv, type: "button", "aria-pressed": String(S.repo === val),
         onclick: function () { S.repo = val; pref("repo", val); render(); }
       }, [label, h("span", { class: "n", text: String(n) })]);
     }
@@ -465,25 +823,29 @@ a { color: var(--accent); }
   }
 
   function renderCard(c) {
-    var st = staleness(c);
+    var st = staleness(c), ch = S.diff && S.diff.byId[c.id];
     // A div with a button role, not a <button>: Firefox does not drag buttons.
     var node = h("div", {
-      class: "card" + (st ? " " + st : ""), role: "button", tabindex: "0", "data-id": c.id, draggable: S.canEdit ? "true" : null,
+      class: "card" + (st ? " " + st : "") + (ch ? " changed" : ""), role: "button", tabindex: "0", "data-id": c.id, draggable: S.canEdit ? "true" : null,
       onclick: function () { openCard(c.id); },
       onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCard(c.id); } }
     }, [
-      h("span", { class: "t" }, [h("span", { text: str(c.title) || "Untitled" }), c.is_new ? h("span", { class: "badge", text: "NEW" }) : null]),
+      h("span", { class: "t" }, [h("span", { text: str(c.title) || "Untitled" }),
+        ch ? h("span", { class: "badge chg", text: KIND_LABEL[ch.kinds[0]], title: changeNote(ch) })
+           : c.is_new ? h("span", { class: "badge", text: "NEW" }) : null]),
+      ch && ch.kinds[0] === "moved" ? h("span", { class: "from", text: "from " + colLabel(ch.from) }) : null,
       str(c.summary) ? h("span", { class: "s", text: c.summary }) : null,
       str(c.next_step) && c.status !== "done" && !isClosed(c.status)
         ? h("span", { class: "nx" }, [h("b", { text: "Next: " }), c.next_step]) : null,
       h("span", { class: "f" }, [
-        h("span", { class: "repos" }, arr(c.repos).slice(0, 3).map(function (r) { return h("span", { class: "repo", text: str(r) }); })),
+        h("span", { class: "repos" }, arr(c.repos).slice(0, 3).map(repoTag)),
         h("span", {
           class: "age" + (st ? " " + st : ""), text: ageLabel(c.last_touched),
           title: st === "cold" ? "Gone cold: not touched for 30 days or more" : st === "stale" ? "Left alone for 14 days or more" : "Last touched " + dateLabel(c.last_touched)
         })
       ])
     ]);
+    paintCard(node, c);
     if (S.canEdit) {
       node.addEventListener("dragstart", function (e) { e.dataTransfer.setData("text/plain", c.id); e.dataTransfer.effectAllowed = "move"; node.classList.add("dragging"); });
       node.addEventListener("dragend", function () { node.classList.remove("dragging"); });
@@ -495,11 +857,13 @@ a { color: var(--accent); }
   function openCard(id) {
     var c = byId(id); if (!c) return;
     S.openId = id; S.dirty = false; S.openJson = "";
+    S.openChange = S.diff && S.diff.byId[id] || null;
     if (c.is_new && S.canEdit) updateCard(id, { is_new: false });
+    if (S.openChange) { var seen = entryOf(c); ownEdit(id, seen); saveOwnEdit(id, seen); render(); }
     renderDialog();
     var d = el("card-dlg"); if (!d.open) d.showModal();
   }
-  function closeCard() { S.openId = null; S.dirty = false; S.base = null; var d = el("card-dlg"); if (d.open) d.close(); }
+  function closeCard() { S.openId = null; S.openChange = null; S.dirty = false; S.base = null; var d = el("card-dlg"); if (d.open) d.close(); }
 
   function sec(label, body, forId) {
     return h("div", { class: "sec" }, [forId ? h("label", { for: forId, text: label }) : h("div", { class: "lab", text: label }), body]);
@@ -521,7 +885,8 @@ a { color: var(--accent); }
         h("div", { class: "sub" }, [
           h("span", { text: colLabel }),
           c.last_touched ? h("span", { text: "last touched " + ageLabel(c.last_touched) + " (" + dateLabel(c.last_touched) + ")" }) : null,
-          st ? h("span", { class: "age " + st, text: st === "cold" ? "gone cold" : "left alone" }) : null
+          st ? h("span", { class: "age " + st, text: st === "cold" ? "gone cold" : "left alone" }) : null,
+          S.openChange ? h("span", { class: "chg-note", text: changeNote(S.openChange) }) : null
         ])
       ]),
       h("button", { class: "x", type: "button", "aria-label": "Close", onclick: closeCard, text: "×" })
@@ -565,12 +930,15 @@ a { color: var(--accent); }
     }))));
 
     var repos = arr(c.repos), folders = arr(c.folders);
-    if (repos.length) body.push(sec("Repos", h("div", { class: "repos" }, repos.map(function (r) { return h("span", { class: "repo", text: str(r) }); }))));
+    if (repos.length) body.push(sec("Repos", repoSection(repos)));
     if (folders.length) body.push(sec("Folders", h("div", { class: "rows" }, folders.map(function (f) { return h("span", { class: "mono", text: str(f) }); }))));
 
     if (ed) {
       var del = h("button", { class: "btn danger", type: "button", text: "Delete", onclick: function () {
-        if (del.dataset.armed) { var id = c.id; closeCard(); write(id, function () { return S.db.collection("cards").doc(id).delete(); }); }
+        if (del.dataset.armed) {
+          var id = c.id; closeCard(); ownEdit(id, null);
+          write(id, function () { return S.db.collection("cards").doc(id).delete(); }).then(function (ok) { if (ok) saveOwnEdit(id, null); });
+        }
         else { del.dataset.armed = "1"; del.textContent = "Delete for good?"; setTimeout(function () { delete del.dataset.armed; del.textContent = "Delete"; }, 4000); }
       } });
       body.push(h("div", { class: "acts" }, [
@@ -590,8 +958,13 @@ a { color: var(--accent); }
     if (notes !== base.notes) f.notes = notes;
     var b = el("dlg-save"); if (b) b.disabled = true;
     if (!Object.keys(f).length) { S.dirty = false; return; }
+    var patch = {};
+    if (f.title) patch.t = f.title;
+    if ("next_step" in f) patch.n = fnv(f.next_step);
+    if (Object.keys(patch).length) ownEdit(id, patch);
     // The typed text stays in the fields (dirty stays true) until the write is confirmed.
     updateCard(id, f).then(function (ok) {
+      if (ok && Object.keys(patch).length) saveOwnEdit(id, patch);
       if (S.openId !== id) { if (ok) toast("Saved."); return; }
       if (ok) { S.dirty = false; toast("Saved."); renderDialog(); }
       else { var again = el("dlg-save"); if (again) again.disabled = false; }
@@ -621,7 +994,12 @@ a { color: var(--accent); }
     };
     if (next) doc.next_step_edited_at = now;
     el("add-dlg").close(); el("add-form").reset();
-    write(id, function () { return S.db.collection("cards").doc(id).set(doc); }).then(function () { S.tab = doc.status; });
+    var entry = entryOf(Object.assign({ id: id }, doc));
+    ownEdit(id, entry);
+    write(id, function () { return S.db.collection("cards").doc(id).set(doc); }).then(function (ok) {
+      S.tab = doc.status;
+      if (ok) saveOwnEdit(id, entry);
+    });
   }
 
   // ---------- wiring ----------
@@ -631,7 +1009,7 @@ a { color: var(--accent); }
   el("add-btn").addEventListener("click", function () { el("add-dlg").showModal(); el("add-name").focus(); });
   el("add-close").addEventListener("click", function () { el("add-dlg").close(); });
   el("add-form").addEventListener("submit", addCard);
-  el("card-dlg").addEventListener("close", function () { S.openId = null; S.dirty = false; S.base = null; });
+  el("card-dlg").addEventListener("close", function () { S.openId = null; S.openChange = null; S.dirty = false; S.base = null; });
   // Esc or a click outside does not throw typed text away. The x button does.
   el("card-dlg").addEventListener("cancel", function (e) {
     if (S.dirty) { e.preventDefault(); toast("Unsaved changes. Save them, or close with x to discard."); }
@@ -646,6 +1024,7 @@ a { color: var(--accent); }
   S.repo = pref("repo") || "";
   S.tab = pref("tab") || "doing";
   setInterval(function () { if (S.loaded && !S.dead) { renderStatus(); } }, 60000);
+  document.addEventListener("visibilitychange", armSeenTimer);
 
   async function start() {
     render();
@@ -660,6 +1039,7 @@ a { color: var(--accent); }
     }
     S.db = db;
     try { S.canEdit = user ? !!(await user.canEdit()) : false; } catch (e) { S.canEdit = false; }
+    loadSeen(user);
 
     // Loading is time-limited: after 10 s, say so and keep listening.
     var timer = setTimeout(function () { S.slow = true; render(); }, 10000);
@@ -679,6 +1059,7 @@ a { color: var(--accent); }
       });
       S.loaded = true; settled(snap.metadata);
       render();
+      seenReady();
       // Refresh an open card only when it changed, and never while its fields are
       // being edited: a re-render would drop the typed text and the focus.
       if (S.openId && !S.dirty) {
@@ -690,6 +1071,13 @@ a { color: var(--accent); }
       S.meta = snap.exists ? (snap.data() || {}) : {};
       render();
     }, function () { /* the board works without its meta document */ });
+    db.doc("meta/projects").onSnapshot(function (snap) {
+      var d = snap.exists ? (snap.data() || {}) : {};
+      P.stored = Object.assign(Object.create(null), d.colors && typeof d.colors === "object" ? d.colors : {});
+      P.exists = !!snap.exists; P.loaded = true;
+      render();
+      if (S.openId && !S.dirty) renderDialog();
+    }, function () { P.loaded = true; P.failed = true; render(); /* colors are computed without it */ });
   }
   start();
 })();

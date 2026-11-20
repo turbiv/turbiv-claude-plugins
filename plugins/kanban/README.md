@@ -14,7 +14,16 @@ current: a small hook notes each session, and a sync turns the sessions into car
   hidden until you turn on the "Closed" switch.
 - **On each card:** where it stands, the next step, what was done lately, the repos it touched, links,
   and the Claude sessions behind it (with a button that copies `claude --resume <id>`).
+- **What changed since you last looked:** cards that are new, moved to another column, renamed or
+  updated since your last visit carry a badge, and a moved card says where it came from. The line at the
+  top counts them ("2 new · 3 moved · 4 updated") and, clicked, shows only those cards and the titles of
+  removed ones. The board counts as seen after 10 seconds on screen: the marks stay until you leave, and
+  are gone next time. "Mark all seen" clears them at once; opening a card clears that card. Your "last
+  seen" is the same on all your devices, and your own changes on the page are never marked for you.
 - **Stale marks:** a Todo or Doing card is marked after 14 days without work, and marked cold after 30.
+- **A color per project:** each card has a stripe in the color of its project (its first repo), and the
+  repo tags and filter chips have the same color. A new project gets a color of its own, and keeps it.
+  Change it in the card's dialog, under Repos.
 - **A repo filter**, a search, and a "Stale" switch.
 - **Editing on the page:** drag a card to another column, edit its title, next step and notes, add a
   card. What you set by hand stays: sync changes a status only when there is newer work on the card,
@@ -88,6 +97,8 @@ What happens in a sync:
   "stop tracking the folder ~/git/client-x" (`/kanban:board`). A full path, or a folder's name alone,
   both work.
 - Runs of scheduled tasks are never put on the board.
+- Each person's "last seen" copy is private to them. People who can only view keep it in their browser,
+  so for them it is per device.
 - Sync writes no tokens, passwords or keys into cards, and `kanban-tool` refuses text that looks like
   one. Read your cards once before you share the board.
 - Other people can install this plugin. Each of them gets their own board in their own account.
@@ -149,4 +160,5 @@ through a local web server:
 python3 plugins/kanban/tests/board-preview.py /tmp/kanban-preview/index.html
 ```
 
-Add `?view=1` to the URL for the read-only view and `?empty=1` for the empty board.
+Add `?view=1` to the URL for the read-only view, `?empty=1` for the empty board, and `?seen=old` for a
+viewer who last looked three days ago.

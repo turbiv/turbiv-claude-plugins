@@ -52,6 +52,7 @@ in the `show` output.
 | Add an idea or a card | `action: "set"` a new document, see below |
 | Merge A into B | see below |
 | Delete | `action: "delete"` with `if_version`. Ask first: it cannot be undone. Offer archive instead |
+| Change a project's color ("make homelab green") | `meta/projects`, not a card: `get` it, then `update` `colors` with the whole map and the repo set to `1` blue, `2` orange, `3` aqua, `4` yellow, `5` pink, `6` green, `7` violet or `8` red. If the document does not exist, `set` `{colors: {<repo>: <n>}}` |
 | Stop tracking a folder | `kanban-tool exclude --data "<data>" --add <full path, or the folder's name>`. No board write. Cards that exist stay: offer to archive them |
 
 **A new card.** `doc_id`: the title in lower case with `-` for other characters, at most 40, then `-`

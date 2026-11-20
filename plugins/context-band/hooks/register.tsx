@@ -8,10 +8,21 @@ import type {
   Timer,
 } from 'claude-code'
 
-import type { Billing, Limit, Meter, Track } from '../types'
+import type { ActivityItem, Billing, Limit, Meter, Track } from '../types'
+import { breakdown, clipLabel, hookActivity, resetActivity, runningItems } from './activity'
+import { CRAB_HEIGHT, CRAB_WIDTH, crabAlt, crabSvg, moodOf } from './crab'
 
 const meter = atom({ plugin: 'context-band', key: 'meter' } as const, null)
 const track = atom({ plugin: 'context-band', key: 'track' } as const, null)
+// Written by ./activity.ts, which declares the same atom.
+const activity = atom({ plugin: 'context-band', key: 'activity' } as const, {
+  tools: [],
+  background: [],
+})
+// Whether the list of everything running is open under the band.
+const isListOpen = atom({ plugin: 'context-band', key: 'isListOpen' } as const, false)
+
+const LIST_LABEL_MAX_CHARS = 80
 
 const BAR_CELLS = 12
 // One glyph for both halves of the bar, so filled and empty cells are the
@@ -90,13 +101,16 @@ const toMeter = (
 // On a subscription: the 5h and 7d windows first (a dash until read), then
 // any other window reported. On the API: whatever windows were reported
 // (a gateway's spend limit, say).
-const shownLimits = (m: Meter): Array<Limit | { kind: string; percentUsed: null; resetsAt: null }> => {
+const shownLimits = (
+  m: Meter,
+): Array<Limit | { kind: string; percentUsed: null; resetsAt: null }> => {
   if (m.billing !== 'plan') {
     return m.limits
   }
 
   const planned = PLAN_WINDOWS.map(
-    kind => m.limits.find(limit => limit.kind === kind) ?? { kind, percentUsed: null, resetsAt: null },
+    kind =>
+      m.limits.find(limit => limit.kind === kind) ?? { kind, percentUsed: null, resetsAt: null },
   )
 
   return [...planned, ...m.limits.filter(limit => !PLAN_WINDOWS.includes(limit.kind))]
@@ -209,9 +223,29 @@ const startSpotify = ($: EngineInterface): void => {
   void pollSpotify($)
 }
 
+// One thing running: what it is. Several: how many, and of what kinds.
+const activityText = (items: ActivityItem[]): string => {
+  const [only] = items
+
+  if (only === undefined) {
+    return 'Idle'
+  }
+
+  if (items.length === 1) {
+    return clipLabel(only.label)
+  }
+
+  const kinds = breakdown(items)
+
+  return kinds.includes(',') ? `${items.length} running: ${kinds}` : `${kinds} running`
+}
+
 export const register: Register = on => {
+  hookActivity(on)
+
   on('session.start', async ($, e, next) => {
     const result = await next(e)
+    await resetActivity($)
     await detectBilling($)
     const usage = await $.session.usage()
     await update($, meter, () => toMeter(usage.context, usage.rateLimits, usage.cost))
@@ -253,83 +287,127 @@ export const register: Register = on => {
 
     const m = await read($, meter)
     const song = await read($, track)
+    const running = runningItems(await read($, activity), e.props.isWorking)
 
     if (e.props.hasSurvey || m === null) {
       return next(e)
     }
 
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Svg, Text } = $.ui.resolve(e)
     const now = await $.clock.now()
     const percent = m.percent ?? 0
     const filled = filledCells(percent)
     const color = level(percent)
+    const mood = moodOf(running, e.props.isWorking)
+    const isSeveral = running.length > 1
+    const isOpen = isSeveral && (await read($, isListOpen))
+    const label = activityText(running)
 
     return (
-      <Box width="100%" justifyContent="space-between" columnGap={2}>
-        <Text>
-          <Text>🧠 </Text>
-          <Text mono color={color}>
-            {BAR_GLYPH.repeat(filled)}
-          </Text>
-          <Text mono color="subtle">
-            {BAR_GLYPH.repeat(BAR_CELLS - filled)}
-          </Text>
-          {m.percent === null ? (
-            <Text dimColor> –</Text>
-          ) : (
-            <Text tabular weight="semibold" color={color}>
-              {` ${m.percent}%`}
-            </Text>
-          )}
-          <Text dimColor>{SEPARATOR}</Text>
-          {m.tokens === null ? null : (
-            <Text tabular color="text">
-              {compact(m.tokens)}
-            </Text>
-          )}
-          <Text dimColor>
-            {m.tokens === null ? '' : ' / '}
-            {compact(m.window)}
-          </Text>
-          {shownLimits(m).map(limit => {
-            const reset = resetLabel(limit.kind, limit.resetsAt, now)
-
-            return (
-              <Text key={limit.kind}>
-                <Text dimColor>
-                  {SEPARATOR}
-                  {LIMIT_LABELS[limit.kind] ?? limit.kind}{' '}
-                </Text>
-                {limit.percentUsed === null ? (
-                  <Text dimColor>–</Text>
-                ) : (
-                  <Text tabular color={level(limit.percentUsed)}>
-                    {`${Math.round(limit.percentUsed)}%`}
-                  </Text>
-                )}
-                {reset === null ? null : <Text dimColor>{` ↻ ${reset}`}</Text>}
+      <Box width="100%" flexDirection="column">
+        <Box width="100%" justifyContent="space-between" alignItems="center" columnGap={2}>
+          <Box alignItems="center" columnGap={1}>
+            {Svg === undefined ? (
+              <Text color={running.length > 0 ? 'suggestion' : 'subtle'}>
+                {running.length > 0 ? '●' : '○'}
               </Text>
-            )
-          })}
-          {/* USD only on API billing: on a subscription it is not what is paid. */}
-          {m.billing === 'plan' || m.usd === null ? null : (
+            ) : (
+              <Svg
+                source={crabSvg(mood, running.length)}
+                alt={crabAlt(mood, running.length)}
+                width={CRAB_WIDTH}
+                height={CRAB_HEIGHT}
+                isInteractive
+              />
+            )}
+            {isSeveral ? (
+              <Button
+                key="activity"
+                label={label}
+                plain
+                onPress={() => update($, isListOpen, open => !open)}
+              >
+                {label}
+                <Text dimColor>{isOpen ? ' ▴' : ' ▾'}</Text>
+              </Button>
+            ) : (
+              <Text color={running.length > 0 ? 'text' : 'subtle'}>{label}</Text>
+            )}
             <Text>
               <Text dimColor>{SEPARATOR}</Text>
-              <Text tabular color="suggestion">
-                {`$${m.usd.toFixed(2)}`}
+              <Text>🧠 </Text>
+              <Text mono color={color}>
+                {BAR_GLYPH.repeat(filled)}
               </Text>
+              <Text mono color="subtle">
+                {BAR_GLYPH.repeat(BAR_CELLS - filled)}
+              </Text>
+              {m.percent === null ? (
+                <Text dimColor> –</Text>
+              ) : (
+                <Text tabular weight="semibold" color={color}>
+                  {` ${m.percent}%`}
+                </Text>
+              )}
+              <Text dimColor>{SEPARATOR}</Text>
+              {m.tokens === null ? null : (
+                <Text tabular color="text">
+                  {compact(m.tokens)}
+                </Text>
+              )}
+              <Text dimColor>
+                {m.tokens === null ? '' : ' / '}
+                {compact(m.window)}
+              </Text>
+              {shownLimits(m).map(limit => {
+                const reset = resetLabel(limit.kind, limit.resetsAt, now)
+
+                return (
+                  <Text key={limit.kind}>
+                    <Text dimColor>
+                      {SEPARATOR}
+                      {LIMIT_LABELS[limit.kind] ?? limit.kind}{' '}
+                    </Text>
+                    {limit.percentUsed === null ? (
+                      <Text dimColor>–</Text>
+                    ) : (
+                      <Text tabular color={level(limit.percentUsed)}>
+                        {`${Math.round(limit.percentUsed)}%`}
+                      </Text>
+                    )}
+                    {reset === null ? null : <Text dimColor>{` ↻ ${reset}`}</Text>}
+                  </Text>
+                )
+              })}
+              {/* USD only on API billing: on a subscription it is not what is paid. */}
+              {m.billing === 'plan' || m.usd === null ? null : (
+                <Text>
+                  <Text dimColor>{SEPARATOR}</Text>
+                  <Text tabular color="suggestion">
+                    {`$${m.usd.toFixed(2)}`}
+                  </Text>
+                </Text>
+              )}
+            </Text>
+          </Box>
+          {song === null ? null : (
+            <Text wrap="truncate-end">
+              <Text color={song.isPlaying ? SPOTIFY_GREEN : 'subtle'}>
+                {song.isPlaying ? '♫ ' : '⏸ '}
+              </Text>
+              <Text color={song.isPlaying ? 'text' : 'subtle'}>{clip(song.title)}</Text>
+              {song.artist === '' ? null : <Text dimColor>{` — ${clip(song.artist)}`}</Text>}
             </Text>
           )}
-        </Text>
-        {song === null ? null : (
-          <Text wrap="truncate-end">
-            <Text color={song.isPlaying ? SPOTIFY_GREEN : 'subtle'}>
-              {song.isPlaying ? '♫ ' : '⏸ '}
-            </Text>
-            <Text color={song.isPlaying ? 'text' : 'subtle'}>{clip(song.title)}</Text>
-            {song.artist === '' ? null : <Text dimColor>{` — ${clip(song.artist)}`}</Text>}
-          </Text>
-        )}
+        </Box>
+        {isOpen
+          ? running.map(item => (
+              <Text key={item.id} wrap="truncate-end">
+                <Text dimColor>{'   · '}</Text>
+                <Text>{clipLabel(item.label, LIST_LABEL_MAX_CHARS)}</Text>
+              </Text>
+            ))
+          : null}
       </Box>
     )
   })

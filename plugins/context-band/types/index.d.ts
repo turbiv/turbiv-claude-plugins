@@ -15,8 +15,18 @@ export type Meter = {
 
 export type Track = { title: string; artist: string; isPlaying: boolean }
 
+// `tool`: a call in flight in the main turn. The rest run in the background.
+export type ActivityKind = 'tool' | 'shell' | 'agent' | 'monitor' | 'workflow' | 'task'
+
+export type ActivityItem = { id: string; kind: ActivityKind; label: string }
+
+export type Activity = { tools: ActivityItem[]; background: ActivityItem[] }
+
+// What the band's crab acts out.
+export type Mood = 'idle' | 'thinking' | 'working' | 'background' | 'several' | 'waiting'
+
 declare module 'claude-code' {
   interface PluginState {
-    'context-band': { meter: Meter | null; track: Track | null }
+    'context-band': { meter: Meter | null; track: Track | null; activity: Activity; isListOpen: boolean }
   }
 }

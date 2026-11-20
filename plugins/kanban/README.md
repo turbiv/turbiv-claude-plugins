@@ -63,7 +63,8 @@ Three things run the same sync:
 1. **You**, with `/kanban:sync`.
 2. **The daily task**, if you let setup create it. It is a scheduled task of the Claude desktop app. It
    runs only while the app is open and the computer is awake; one missed run is caught up at the next
-   launch. Its first run needs you: approve the tools it asks for with "always allow".
+   launch. Its first run needs you: press "Run now" on it in the Scheduled list if setup could not
+   start it, and approve the tools it asks for with "always allow".
 3. **A note at session start.** When sessions wait and the last sync is more than 20 hours old, Claude
    tells you once that `/kanban:sync` updates the board.
 

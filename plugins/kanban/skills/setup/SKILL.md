@@ -112,9 +112,17 @@ On yes, create it with:
   this session, say so in one line and stop.
   ```
 
-Then say: "The first run needs you. I start it now; open it from the Scheduled list and approve the
-tools it asks for with 'always allow'. Later runs then go through alone." Start it with
-`mcp__scheduled-tasks__run_scheduled_task`. Do not wait for it.
+Tell the user which permission mode the task was saved in (the tool's result says it), and that they
+can change it by editing the task in the app.
+
+The first run needs the user. Try to start it with `mcp__scheduled-tasks__run_scheduled_task`, once.
+
+- It starts: say "The first run is started. Open it from the Scheduled list and approve the tools it
+  asks for with 'always allow'. Later runs then go through alone." Do not wait for it.
+- The app refuses the start (it often does: starting a scheduled task from a session can be blocked):
+  do not try another way. Say: "Open Scheduled in the sidebar and press Run now on 'Kanban daily sync'.
+  Then open the run and approve the tools it asks for with 'always allow'." Add that without this, the
+  task runs by itself at the next scheduled time, and that they should look at that first run once.
 
 Without the scheduled-task tool (the terminal CLI): say that sync runs by hand with `/kanban:sync`, and
 that a note at session start says when sessions wait.

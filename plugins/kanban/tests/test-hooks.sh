@@ -163,12 +163,26 @@ echo "ODD-CARD" >"$D/context/tree/$(key "$ODD2").txt"
 echo "$SAMPLE" | run "$D" "$ODD2" start
 check "odd folder name: context is found" grep -q ODD-CARD "$TMP/out"
 
-# 10. The nudge.
+# 10. The nudge. It counts sessions by id, from start and end lines alike.
+sid() { printf '{"session_id":"%s","cwd":"/tmp/proj"}' "$1"; }
 newdata 10
-echo "$SAMPLE" | run "$D" "$PROJ" end
-echo "$SAMPLE" | run "$D" "$PROJ" end
-echo "$SAMPLE" | run "$D" "$PROJ" start
+sid s1 | run "$D" "$PROJ" start
+sid s1 | run "$D" "$PROJ" end
+sid s2 | run "$D" "$PROJ" end
+sid s3 | run "$D" "$PROJ" start
 check "nudge: names 2 sessions when never synced" grep -q 'kanban: 2 sessions are not on the board yet' "$TMP/out"
+newdata 13
+sid d1 | run "$D" "$PROJ" start
+sid d2 | run "$D" "$PROJ" start
+sid d2 | run "$D" "$PROJ" start
+sid d3 | run "$D" "$PROJ" start
+check "nudge: start lines count (desktop sessions that are never closed)" grep -q 'kanban: 2 sessions are not on the board yet' "$TMP/out"
+newdata 14
+sid only | run "$D" "$PROJ" start
+check "nudge: this session alone is not counted" sh -c "! grep -q 'not on the board' '$TMP/out'"
+printf '%s\n' '{"ev":"end","ts":"x","dir":"/tmp","in":{"session_id": "carried", "transcript_path": "/t"}}' >>"$D/pending.jsonl"
+sid only | run "$D" "$PROJ" start
+check "nudge: a line carried over by kanban-tool counts" grep -q 'kanban: 1 session is not on the board yet' "$TMP/out"
 touch "$D/last-sync"
 echo "$SAMPLE" | run "$D" "$PROJ" start
 check "nudge: silent after a fresh sync" sh -c "! grep -q 'not on the board' '$TMP/out'"

@@ -33,17 +33,22 @@ def samples():
             "id": "sample-%d" % i, "title": title, "status": status,
             "summary": kw.get("summary", "The first version works end to end. Two details are still rough."),
             "next_step": kw.get("next_step", "Fix the rough details, then use it for a week."),
-            "log": [{"date": iso(age), "text": "Built the first working version.", "session": "s1"},
+            "log": [{"date": iso(age), "text": "Built the first working version.", "session": "86a44c20-4106-4adc-824f-5eb5422511ee"},
                     {"date": iso(age + 2), "text": "Compared three ways to build it and picked one.", "session": "s0"}],
             "repos": kw.get("repos", ["sample-repo"]), "folders": ["/Users/you/git/sample-repo"],
             "links": [{"label": "GitHub", "url": "https://github.com/you/sample-repo"}],
-            "sessions": [{"id": "0000-1111", "title": "Sample session", "date": iso(age)}],
+            "sessions": [{"id": "86a44c20-4106-4adc-824f-5eb5422511ee", "title": "Sample session", "date": iso(age)},
+                         {"id": "0000-1111", "title": "Session with an id that is not a real one", "date": iso(age + 2)}],
             "last_touched": iso(age), "created": iso(age + 9), "status_changed_at": iso(age),
             "is_new": kw.get("is_new", False), "notes": kw.get("notes", ""),
         }
         return c
     return [
-        card(1, "Sample: sauna dashboard", "doing", 0, is_new=True, repos=["homelab"]),
+        card(1, "Sample: sauna dashboard", "doing", 0, is_new=True, repos=["homelab"],
+             summary="- Sauna section on the Home dashboard, with a hottest-days leaderboard\n"
+                     "- Ready alert fires above 60 \u00b0C, the 3-hour warning stays at 50 \u00b0C\n"
+                     "- A bullet that is long enough to wrap onto a second line on a narrow card in the column\n"
+                     "- Looks finished"),
         card(2, "Sample: vinyl record holder", "doing", 21, repos=["3d-modeling"]),
         card(3, "Sample: a card nobody touched for a long time, with a long title", "todo", 44, repos=["homelab", "ops", "docs", "more"]),
         card(4, "Sample: <img src=x onerror=alert(1)> shows as text", "todo", 3, summary="<b>bold?</b> shows as text", next_step="<script>alert(1)</script>"),

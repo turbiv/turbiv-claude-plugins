@@ -52,11 +52,17 @@ fi
 [ -n "$FOUND" ] && head -c 4000 "$FOUND"
 
 # --- The nudge: sessions wait and the last sync is over 20 hours old ---
-N=$(grep -c '"ev":"end"' "$DATA/pending.jsonl")
+# Count sessions by id, from start and end lines alike: in the desktop app a
+# session is seldom closed, so its end line may never come. This session is
+# not counted: it has only just begun.
+ids() { grep -o '"session_id": *"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/'; }
+SELF=$(printf %s "$IN" | ids | head -n 1)
+N=$(ids <"$DATA/pending.jsonl" | sort -u | grep -v -x -F -e "$SELF" | grep -c .)
 case "$N" in ''|*[!0-9]*) N=0 ;; esac
 if [ "$N" -gt 0 ]; then
   if [ ! -f "$DATA/last-sync" ] || [ -n "$(find "$DATA/last-sync" -mmin +1200)" ]; then
-    echo "kanban: $N sessions are not on the board yet. Tell the user once, in one line, that /kanban:sync updates it. Do not run it unasked."
+    if [ "$N" -eq 1 ]; then W="1 session is"; else W="$N sessions are"; fi
+    echo "kanban: $W not on the board yet. Tell the user once, in one line, that /kanban:sync updates it. Do not run it unasked."
   fi
 fi
 exit 0

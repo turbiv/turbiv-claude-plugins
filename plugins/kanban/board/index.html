@@ -136,6 +136,13 @@ h1 { font-family: var(--font-head); font-size: 24px; font-weight: 600; margin: 0
 .card .t span:first-child { min-width: 0; }
 .badge { font-size: 10.5px; font-weight: 600; letter-spacing: .06em; background: var(--accent-soft); color: var(--accent); border-radius: 5px; padding: 2px 6px; flex: none; }
 .card .s { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.card ul.s, .sec ul.bl { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 2px; -webkit-line-clamp: unset; }
+.card ul.s { list-style: none; padding-left: 0; }
+.card ul.s li { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card ul.s li::before { content: "\2022\00a0"; }
+.sec ul.bl li { overflow-wrap: anywhere; }
+.log .open { font-size: 12px; margin-left: 6px; white-space: nowrap; }
+.row .open { white-space: nowrap; font-size: 13px; }
 .card .nx { font-size: 13px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .card .nx b { font-weight: 600; color: var(--accent); }
 .card .f { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; justify-content: space-between; margin-top: 2px; }
@@ -286,7 +293,7 @@ a { color: var(--accent); }
 <script>
 (function () {
   "use strict";
-  var PAGE_VERSION = 5;
+  var PAGE_VERSION = 6;
   var SEEN_AFTER_MS = 10000;  // the page counts as seen after 10 s on screen
   var COLUMNS = [
     { key: "idea", label: "Ideas", empty: "No ideas parked here." },
@@ -418,6 +425,25 @@ a { color: var(--accent); }
     return typeof c.order === "number" ? c.order : -(time(c.last_touched) || time(c.created)) / 1000;
   }
   function safeUrl(u) { return /^https?:\/\//i.test(str(u)) ? u : null; }
+  // The summary is a few lines "- bullet" (older cards: one paragraph).
+  function bullets(text) {
+    var lines = str(text).split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
+    if (!lines.length || !/^[-*\u2022]\s/.test(lines[0])) return null;
+    return lines.map(function (l) { return l.replace(/^[-*\u2022]\s+/, ""); });
+  }
+  function summaryNode(text, cls, empty) {
+    var b = bullets(text);
+    if (b) return h("ul", { class: cls }, b.map(function (l) { return h("li", { text: l }); }));
+    return h(cls === "s" ? "span" : "p", { class: str(text) ? (cls === "s" ? "s" : "") : "none", text: str(text) || empty || "" });
+  }
+  // A link that opens a Claude Code session in the desktop app. Only for real session ids.
+  var SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  function openLink(id, text) {
+    id = str(id);
+    if (!SESSION_ID.test(id)) return null;
+    return h("a", { class: "open", href: "claude://resume?session=" + id, target: "_blank", rel: "noopener noreferrer",
+      title: "Opens this session in the Claude desktop app", text: text });
+  }
   function toast(msg) {
     var t = el("toast"); t.textContent = msg; t.hidden = false;
     clearTimeout(toast.timer); toast.timer = setTimeout(function () { t.hidden = true; }, 3500);
@@ -834,7 +860,7 @@ a { color: var(--accent); }
         ch ? h("span", { class: "badge chg", text: KIND_LABEL[ch.kinds[0]], title: changeNote(ch) })
            : c.is_new ? h("span", { class: "badge", text: "NEW" }) : null]),
       ch && ch.kinds[0] === "moved" ? h("span", { class: "from", text: "from " + colLabel(ch.from) }) : null,
-      str(c.summary) ? h("span", { class: "s", text: c.summary }) : null,
+      str(c.summary) ? summaryNode(c.summary, "s") : null,
       str(c.next_step) && c.status !== "done" && !isClosed(c.status)
         ? h("span", { class: "nx" }, [h("b", { text: "Next: " }), c.next_step]) : null,
       h("span", { class: "f" }, [
@@ -901,14 +927,15 @@ a { color: var(--accent); }
         });
       }))));
     }
-    body.push(sec("Where it stands", h("p", { class: str(c.summary) ? "" : "none", text: str(c.summary) || "No summary yet. The next sync writes one." })));
+    body.push(sec("Where it stands", summaryNode(c.summary, "bl", "No summary yet. The next sync writes one.")));
     body.push(ed
       ? sec("Next step", h("textarea", { class: "field", id: "dlg-next", maxlength: "200", rows: "2", oninput: dirty, text: str(c.next_step) }), "dlg-next")
       : sec("Next step", h("div", { class: "next-box" }, [h("p", { class: str(c.next_step) ? "" : "none", text: str(c.next_step) || "None set." })])));
 
     var log = arr(c.log);
     if (log.length) body.push(sec("Done lately", h("ul", { class: "log" }, log.map(function (e) {
-      return h("li", null, [h("span", { class: "d", text: dateLabel(e && e.date) }), h("span", { class: "x2", text: str(e && e.text) })]);
+      return h("li", null, [h("span", { class: "d", text: dateLabel(e && e.date) }),
+        h("span", { class: "x2" }, [str(e && e.text), openLink(e && e.session, "Open session")])]);
     }))));
 
     body.push(ed
@@ -925,6 +952,7 @@ a { color: var(--accent); }
       var cmd = "claude --resume " + str(s && s.id);
       return h("div", { class: "row" }, [
         h("span", { class: "grow" }, [str(s && s.title) || str(s && s.id), " ", h("small", { text: dateLabel(s && s.date) })]),
+        openLink(s && s.id, "Open in Claude"),
         h("button", { class: "btn small", type: "button", text: "Copy resume command", title: cmd, onclick: function (e) { copy(cmd, e.currentTarget); } })
       ]);
     }))));

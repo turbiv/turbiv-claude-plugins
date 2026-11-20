@@ -17,7 +17,7 @@ never changes, also when the title does.
 | `title` | string, at most 80 characters | sync when it makes the card; after that only the owner |
 | `status` | `idea`, `todo`, `doing`, `done`, `dropped` or `archived` | the owner; sync by the status rules |
 | `status_changed_at` | ISO time of the last status change | the page and sync |
-| `summary` | string, at most 600: where the work stands | sync |
+| `summary` | string: where the work stands, as at most 4 lines `- bullet`, each at most 120 characters. Older cards may hold one paragraph | sync |
 | `next_step` | string, at most 200: the one next thing to do | sync, and the owner |
 | `next_step_edited_at` | ISO time of the owner's last edit of `next_step` | the page |
 | `log` | array of `{date, text, session}`, newest first, at most 20 | sync |
@@ -29,7 +29,7 @@ never changes, also when the title does.
 | `created` | ISO time | whoever makes the card |
 | `order` | number or null: the hand-set place in the column | the page |
 | `is_new` | true until the owner opens or edits the card | sync sets it, the page clears it |
-| `notes` | string: the owner's free text | the owner. Sync never writes it |
+| `notes` | string: the owner's free text | the owner. Sync reads it as the newest facts and never writes it |
 
 The page sorts a column by `order` when it is a number, else by `last_touched`, newest first. Both are
 on one scale (seconds, negative), so a card placed by hand keeps its place among the others.
@@ -41,14 +41,18 @@ Staleness is not stored. The page computes it: a `todo` or `doing` card is stale
 
 - A session counts only when it ended after `status_changed_at`. So a status set by hand stays until
   there is newer work.
-- With such a session: `idea` or `todo` becomes `doing`. `done` or `archived` becomes `doing`, and the
-  log line starts with "Reopened".
-- Sync never sets `done`. When the work looks finished, it says so in `summary`.
+- With such a session the card gets the status the decision gives it: `doing` (left in the middle),
+  `todo` (a step finished, something new left), `done` (the goal reached; a small loose end stays in
+  `next_step`), or `idea` (only for a card that is still an idea). From `done` or `archived` to `doing`
+  or `todo`, the log line starts with "Reopened".
+- When the decision gives no status (or one it may not set): `idea` or `todo` becomes `doing`, `done` or
+  `archived` becomes `doing` with "Reopened", and `doing` stays.
 - `dropped` is "Won't do": the owner decided not to go on. Only the owner sets it, and sync never
   changes it. Newer work on such a card is added to its log, but the card stays dropped until the owner
   moves it. `done` means finished; `dropped` means given up. Neither goes stale.
 - The page hides `dropped` and `archived` cards until the "Closed" switch is on.
-- Sync moves `done` to `archived` 30 days after `status_changed_at`.
+- Sync moves `done` to `archived` 7 days after `status_changed_at`, so the Done column holds the last
+  week.
 - Sync replaces `next_step` unless `next_step_edited_at` is later than the end of the card's newest
   session.
 

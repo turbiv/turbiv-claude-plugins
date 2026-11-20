@@ -4,5 +4,51 @@
   "description": "Generate and edit images with OpenAI's GPT Image models from Claude Code, with the cost of every image shown",
   "author": {
     "name": "Ivan Turbin"
+  },
+  "userConfig": {
+    "openai_api_key": {
+      "type": "string",
+      "title": "OpenAI API key",
+      "description": "API key from a dedicated OpenAI project with a budget limit. Kept in the OS secure store and passed only to this plugin's MCP server.",
+      "sensitive": true,
+      "required": false
+    },
+    "default_model": {
+      "type": "string",
+      "title": "Default model",
+      "description": "Image model used when a call names none. Any OpenAI image model id.",
+      "default": "gpt-image-2.5-sunburst"
+    },
+    "default_quality": {
+      "type": "string",
+      "title": "Default quality",
+      "description": "Quality used when a call names none. Higher quality costs more per image.",
+      "default": "medium",
+      "options": ["low", "medium", "high", "xhigh", "max", "auto"]
+    },
+    "max_cost_per_call": {
+      "type": "number",
+      "title": "Max cost per call (USD)",
+      "description": "A call whose estimated cost is above this is refused unless Claude asks you and retries with allow_expensive.",
+      "default": 0.10,
+      "min": 0.01
+    }
+  },
+  "mcpServers": {
+    "openai-images": {
+      "command": "uv",
+      "args": ["run", "--script", "${CLAUDE_PLUGIN_ROOT}/server/openai_images.py"],
+      "env": {
+        "OPENAI_IMAGES_API_KEY": "${user_config.openai_api_key}",
+        "OPENAI_IMAGES_DEFAULT_MODEL": "${user_config.default_model}",
+        "OPENAI_IMAGES_DEFAULT_QUALITY": "${user_config.default_quality}",
+        "OPENAI_IMAGES_MAX_COST_PER_CALL": "${user_config.max_cost_per_call}",
+        "OPENAI_IMAGES_DATA_DIR": "${CLAUDE_PLUGIN_DATA}",
+        "OPENAI_API_KEY": "",
+        "OPENAI_BASE_URL": "",
+        "OPENAI_ORG_ID": "",
+        "OPENAI_PROJECT_ID": ""
+      }
+    }
   }
 }

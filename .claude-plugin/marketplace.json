@@ -10,7 +10,7 @@
     {
       "name": "flow",
       "source": "./plugins/flow",
-      "description": "Takes a goal to an approved, binding spec, with one decision table and an always-on validator"
+      "description": "WIP!!! Takes a goal to an approved, binding spec, with one decision table and an always-on validator"
     },
     {
       "name": "context-band",

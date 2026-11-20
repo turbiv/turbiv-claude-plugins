@@ -1,0 +1,98 @@
+{
+ "data": [
+  {
+   "subreddit": "espresso",
+   "rules": [
+    {
+     "kind": "all",
+     "priority": 0,
+     "short_name": "Be civil",
+     "created_utc": 1652991382,
+     "description": "We strive to cultivate an inclusive and welcoming community for newcomers, burgeoning enthusiasts, and veterans alike. Don't gatekeep or look down on people's equipment or taste preferences.\n\n\nHarassment, bullying, or any form of personal attacks will not be tolerated. Hate speech or discriminatory language based on race, gender, religion, ethnicity, sexual orientation, income, or any other characteristic is strictly prohibited.",
+     "violation_reason": "Breaks subreddit code of conduct"
+    },
+    {
+     "kind": "all",
+     "priority": 1,
+     "short_name": "Keep things relevant to espresso",
+     "created_utc": 1652991382,
+     "description": "This sub is geared towards espresso made by manual (lever) and semi-automatic (pump-driven) methods. Discussions about superautomatic machines are more appropriate on r/superautomatic.\n\nThe following topics are not appropriate here:\n- Non-espresso brewing (e.g., moka pot/stovetop makers, pourover, Aeropress, Nespresso)\n- General coffee content/paraphernalia\n\nIf posting about cafes, beans, or roasting, the subject must be about **espresso**",
+     "violation_reason": "Subreddit relevancy"
+    },
+    {
+     "kind": "link",
+     "priority": 2,
+     "short_name": "Read the Wiki first",
+     "created_utc": 1735838981,
+     "description": "Before posting, please review the subreddit [wiki](https://www.reddit.com/r/espresso/wiki/index/), such as our [Brewing Basics](https://www.reddit.com/r/espresso/wiki/guides/brewing-basics/) guide. Many beginner and frequently asked questions are already answered there. This helps keep the subreddit focused on fresh and unique discussions.",
+     "violation_reason": "Check the Wiki first"
+    },
+    {
+     "kind": "link",
+     "priority": 3,
+     "short_name": "Use the right flair & follow posting guidelines",
+     "created_utc": 1726770667,
+     "description": "Read the [Guide to Posting](https://www.reddit.com/r/espresso/wiki/rules/flairs/) before making a submission. Please use the appropriate flair for your post and format your title properly if the flair requires it.",
+     "violation_reason": "Use the right flair & follow posting guidelines"
+    },
+    {
+     "kind": "link",
+     "priority": 4,
+     "short_name": "No low-effort text posts or questions",
+     "created_utc": 1687711722,
+     "description": "If you're here to ask a question, please be as descriptive as possible so that other users are well-informed before engaging. Don't submit vague posts like \"Is x good?\", \"Just bought y, tips?\", \"Need shot help\", etc. without additional context or further elaboration. \n\nPlease read our [Guide to Posting](https://www.reddit.com/r/espresso/wiki/index/#wiki_guide_to_posting_.26amp.3B_flairs) for suggestions on how to add more detail to your post so it's interesting to engage with.",
+     "violation_reason": "Post lacking sufficient detail/basic question"
+    },
+    {
+     "kind": "link",
+     "priority": 5,
+     "short_name": "No screenshots of purchases or photos of boxed equipment",
+     "created_utc": 1652991382,
+     "description": "Yes we know you're excited to buy something new, however turn your excitement into a discussion. Instead of posting a screenshot, create a text post asking questions about your new gear. If you have just received your gear, you can share a photo after you have unboxed it.",
+     "violation_reason": "No screenshots of purchases or photos of boxed equipment."
+    },
+    {
+     "kind": "all",
+     "priority": 6,
+     "short_name": "Promotions & advertising",
+     "created_utc": 1652991382,
+     "description": "If you wish to promote your business or account, you may only do so on Sundays or with prior mod approval and must use the \"Self Promotion\" flair. \n\nBrands, businesses, or other accounts with financial incentives must follow [additional rules](https://www.reddit.com/r/espresso/wiki/rules/).\n\nThese are always prohibited:\n\n- Astroturfing\n- Listicles or other SEO-driven sites (i.e., \"clickbait\" to get ad revenue)\n- Affiliate/referral links\n- Marketing/research surveys",
+     "violation_reason": "Self-promotion/affiliate links"
+    },
+    {
+     "kind": "all",
+     "priority": 7,
+     "short_name": "Don't sell or ask how much your gear is worth",
+     "created_utc": 1652991382,
+     "description": "This sub is not a marketplace. Try /r/coffeeswap, www.home-barista.com/buysell/, the Espresso Aficionados Discord Marketplace, Facebook Marketplace, eBay, or Craigslist.",
+     "violation_reason": "Don't sell or ask how much your gear is worth"
+    },
+    {
+     "kind": "all",
+     "priority": 8,
+     "short_name": "NSFW content policy",
+     "created_utc": 1652991382,
+     "description": "We recognize that beginner attempts at latte art can result in some... suggestive... outcomes. Latte art that could be interpreted as \"lewd\" must be marked using Reddit's NSFW tag. \n\nThis is not an 18+ subreddit and therefore actually explicit NSFW content is not allowed and will be removed.",
+     "violation_reason": "Actually NSFW (not latte art)"
+    },
+    {
+     "kind": "link",
+     "priority": 9,
+     "short_name": "No AI-generated content",
+     "created_utc": 1701317464,
+     "description": "AI-generated photos, videos, and text (from software such as ChatGPT, Stable Diffusion, etc.) are not permitted.",
+     "violation_reason": "No AI-generated content"
+    },
+    {
+     "kind": "all",
+     "priority": 10,
+     "short_name": "Repetitive posts/spam",
+     "created_utc": 1672868684,
+     "description": "If you're sharing an article, please search the subreddit first to ensure the same content has not already been posted. This helps reduce cluttering the feed and consolidates discussions.\n\nDo not spam the sub with repetitive posts or comments in threads about the same subject or problem.\n\nMeme trains and reposts of memes may be removed at the moderators' discretion.",
+     "violation_reason": "Repetitive posting/spam"
+    }
+   ],
+   "retrieved_on": 1737612493
+  }
+ ]
+}

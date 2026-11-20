@@ -120,28 +120,39 @@ Session 1 runs first. Sessions 2, 3 and 4 can run in parallel after it, because 
 
 ### Session 4: discovery, users and mention counts
 
-- [ ] `find_subreddits(name_or_prefix, min_subscribers, nsfw, keyword?)`:
+Done in `tools/discovery.py`. Tests: `tests/discovery/`. Costs and probe findings: [`docs/discovery-costs.md`](docs/discovery-costs.md).
+
+- [x] `find_subreddits(name_or_prefix, min_subscribers, nsfw, keyword?)`:
   - It matches by name and prefix.
   - It has an optional local keyword filter over descriptions.
   - It does not claim topic search. (T12)
-- [ ] `subreddit_info(subreddit)` returns:
+  - Added: the 3 largest results also get posts per day (`activity_for_top`, one time-series request each).
+- [x] `subreddit_info(subreddit)` returns:
   - subscribers and description
-  - activity (posts per day from the aggregate or time-series endpoints)
+  - activity: posts and comments per day from the daily `time_series`. If that fails, it estimates posts per day from the newest 100 posts.
+    **Fact** (2026-11-21): the comment `aggregate` endpoint returned 0 for a term that `comments/search` matched 100 times. So no tool uses the aggregates.
   - rules and the list of wiki pages
-- [ ] `read_wiki(subreddit, page)` returns a wiki page.
-- [ ] `get_user(username, time?)`:
+- [x] `read_wiki(subreddit, page)` returns a wiki page. Long pages come in parts (`offset`, `next_offset`).
+- [x] `get_user(username, time?)`:
   - It returns archived posts and comments, and the subreddits the user is active in.
   - It labels karma as stale archive karma.
   - It returns no account age. (T13)
-- [ ] `resolve_share_link(url)` resolves `/r/x/s/...` links. (T15)
-- [ ] `trending_posts(subreddits[], hours)`:
+  - The default window is the last year (T14).
+- [x] `resolve_share_link(url)` resolves `/r/x/s/...` links. (T15) It also returns the target post and comment.
+  **Fact:** the archive knows only share links that appeared in archived posts or comments.
+- [x] `trending_posts(subreddits[], hours)`:
   - It ranks posts by the number of new comments in the last N hours, from `comments/search` sorted newest first.
   - It labels the method as "recent comment activity, not Reddit's hot".
   - Reason: `hot` is not possible (T4), and scores and `num_comments` are 1 or 0 for the first ~36 h.
-- [ ] `count_mentions(subreddits[], terms[], time | after/before, in: posts|comments|both)`:
+  - With no subreddits it refuses and says r/all is not available.
+  - Subreddits too big for the budget are sampled across the window. Posts are compared by estimated new comments.
+- [x] `count_mentions(subreddits[], terms[], time | after/before, in: posts|comments|both)`:
   - It returns a count per term.
   - It also returns the number of distinct threads per term, with example links.
   - The scan is bounded, and the output states its size and any truncation. (T14)
+  - How it works: it lists the window newest-first and matches terms locally. It does not use archive keyword search, which mostly fails under load (probes Q1).
+    A window too big for `max_requests` (default 40, 422 retries included) is sampled in equal time slices. The output then adds scaled estimates.
+  - The default window is the last 3 months. All-time needs `all_time=true` (T14).
 
 ### Session 5: research skill, docs and end-to-end check
 

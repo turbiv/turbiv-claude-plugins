@@ -1,0 +1,92 @@
+{
+ "data": [
+  {
+   "author": "willswill",
+   "body": "Lucky you! I'd say to just give it a little voltage offset (maybe -20 or -25 mV if you don't feel like checking stability, as this should almost always be rock solid), then set both power limits to whatever you want. I'd say probably 35-45 watts based on your answers here. Should be easy enough, but I don't have a gigabyte bios so I won't be able to tell you exactly where to find these options.",
+   "created_utc": 1775707011,
+   "id": "of4js7d",
+   "link_id": "t3_wi7uhk",
+   "parent_id": "t1_oczc53l",
+   "retrieved_on": 1775707036,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "jrduffman",
+   "body": "I just had a Core i9 9900K on a Gigabyte Z390 UD motherboard given to me for free.  It's only going to be used as an HTPC to playback 1080p Bluray rips.  I know it's MASSIVE overkill for this use case but it's what I got.  I'm wondering what's the EASIEST way to undervolt/underclock this thing?  I mean like can I just set something in the BIOS to disable any and all turbo boost functions?  I don't care if I loose literally %50 all core perf again this is massive overkill and I would rather it use as little power as is reasonable.  If I don't have to get into custom voltage offsets and other advanced settings like that it would be great.  Again the easiest way to just limit this thing to a fair degree is good.",
+   "created_utc": 1774715991,
+   "id": "oczc53l",
+   "link_id": "t3_wi7uhk",
+   "parent_id": "t3_wi7uhk",
+   "retrieved_on": 1774716020,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "willswill",
+   "body": "Huh. For me it was as simple as \"type number in box\". I actually just replaced this system this week with a 9800X3D system (not for any good reason, the 9900K was still kickin tbh) and it worked the same - type number in box, processor is power limited. That said, definitely pay attention to what units it wants in the box. My Z370 wanted power in watts, my X870 wanted power in mW. Felt crazy typing \"105000\" in that field haha.\n\nThat's really the only thing I can think of though. And of course make sure you're saving your settings.\n\nI measured power at the wall as well, and the PC really was drawing less power, so I'm quite confident mine was working.\n\nGood luck!",
+   "created_utc": 1750907990,
+   "id": "mztjmxv",
+   "link_id": "t3_wi7uhk",
+   "parent_id": "t1_mzriofp",
+   "retrieved_on": 1750908004,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "-TheRandomizer-",
+   "body": "How did you power limit it? My Z390 Code XI doesn't even respond to manually adjusted long term and short term power limits.",
+   "created_utc": 1750883907,
+   "id": "mzriofp",
+   "link_id": "t3_wi7uhk",
+   "parent_id": "t3_wi7uhk",
+   "retrieved_on": 1750883923,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "flexiondotorg",
+   "body": "Thanks for writing this up! I'm repurposing my i9 9900K workstation as a \"new\" home lab server running NixOS. I want to run it cool, quiet and low-power so this post was a great inspiration.\n\nLike you, I set a -50mV core voltage offset and set PL1 and PL2 to 35W. In addition, I've enabled Active Turbo Ratios, capping every core to 4.6 Ghz, and enabling Energy Efficient Turbo.\n\nIf I need more performance in the future, I have an upgrade roadmap ![gif](emote|free_emotes_pack|grin)",
+   "created_utc": 1717885286,
+   "id": "l7qi7zn",
+   "link_id": "t3_wi7uhk",
+   "parent_id": "t3_wi7uhk",
+   "retrieved_on": 1717885301,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "Alatusa90",
+   "body": "A guide on what settings specific where you change would be great.  \nI can see you mentioned some settings, but I don't believe those are the only settings changed right?  \n\n\nI'm also looking to do this to lower power consumption for ESXI purposes, run multiple VM's with low power draw.  \n\n\nAn example to have firewall VM with very low power draw to run 24/7.",
+   "created_utc": 1705670990,
+   "id": "kil2dnr",
+   "link_id": "t3_wi7uhk",
+   "parent_id": "t3_wi7uhk",
+   "retrieved_on": 1705671007,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "FraggedYourMom",
+   "body": "Did you drop voltage at 35w? How were the temps? Thinking of turning the 9900K into a Proxmox box but want power sipping, cool running, and lots of fast enough cores.",
+   "created_utc": 1692511275,
+   "id": "jwyql9d",
+   "link_id": "t3_wi7uhk",
+   "parent_id": "t3_wi7uhk",
+   "retrieved_on": 1692511284,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "letsmodpcs",
+   "body": "Seriously, how does this only have 10 upvotes?\n\nI've moved up to 13th gen for gaming and Adobe Lightroom, but I'm thinking about running my 9900k at very low power with just the iGPU for basic office work in the hot summers.  This will be an amazing reference.",
+   "created_utc": 1690599540,
+   "id": "jtw77wo",
+   "link_id": "t3_wi7uhk",
+   "parent_id": "t1_jqqr5hr",
+   "retrieved_on": 1690599556,
+   "score": 2,
+   "subreddit": "buildapc"
+  }
+ ]
+}

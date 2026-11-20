@@ -107,16 +107,22 @@ Session 1 runs first. Sessions 2, 3 and 4 can run in parallel after it, because 
 
 ### Session 3: comments
 
-- [ ] `get_thread(url_or_id, max_comments, depth, sort)`:
+- [x] `get_thread(url_or_id, max_comments, depth, sort)`:
   - It returns the post plus a trimmed comment tree, with `more` stubs. (T9)
+    `comment_counts` gives the archived count, because the post's `num_comments` is often a stale snapshot.
   - It sorts `new`, `old` and `top` locally. (T10)
-- [ ] `expand_comments(post_id, more_ids[])` expands `more` stubs.
-- [ ] `get_comment_context(comment_id_or_url, context≤8)` walks up the parent comments. (T11)
-- [ ] `search_comments(subreddits[], query, time | after/before, limit)`:
-  - It passes phrase, OR and exclusion syntax to the archive. (T7)
-    Comment search syntax is not probed yet. Session 3 checks it in its live test. If the archive rejects a form, the tool applies it locally, as `search_posts` does.
-  - It uses the same 422 fallback as `search_posts`.
-- [ ] Comment results carry a completeness note while comment ingest lags. (O4)
+- [x] `expand_comments(post_id, more_ids[])` expands `more` stubs.
+  It reuses the cached tree, and loads a stub's children with `tree?parent_id=`, at most 10 per call.
+- [x] `get_comment_context(comment_id_or_url, context≤8)` walks up the parent comments. (T11)
+  It also returns the comment's full text (O6) and its replies.
+- [x] `search_comments(subreddits[], query, time | after/before, limit)`:
+  - It passes words (AND), `"phrase"` and `OR` to the archive's `body` search. (T7)
+    It applies `-exclude` and `NOT` locally: it sends the positive part, asks for 100 results, and filters them.
+    Reason: in the Session 3 live test every form worked at least once, but exclusion on a subreddit never did
+    (0 of 3; [`docs/probes.md`](docs/probes.md), Session 3, S3-1).
+  - It uses the same 422 fallback as `search_posts`: a labelled, bounded local scan of the window. (T6)
+  - It also takes `author` or `post` as the scope.
+- [x] Comment results carry a completeness note while comment ingest lags. (O4)
 
 ### Session 4: discovery, users and mention counts
 

@@ -174,3 +174,128 @@ exact wait.
 | ACCEPTANCE.md | Session 3, `search_comments` | Comment search syntax is not probed yet; Session 3 checks it in its live test and uses the posts fallback | Q6 |
 | EVALS.md | `read-post`, `thread-follow-up`, facts | 22 archived comments (9 top-level), OP replied 10 times; `num_comments` 2 is a stale snapshot | Q2 |
 | client | E2 retry | Fast 422: wait 3 s, and suggest waiting rather than rewriting | Q7 |
+
+# Live probes, Session 3
+
+**Fact:** run on 2026-11-20 between 22:56 and 23:00 UTC (2026-11-21 local time) against the public Arctic Shift
+instance. 26 requests in all (budget 30), one at a time, at least 6 s apart. No request went to reddit.com.
+
+- Requests 1–25 came from one script. Request 26 ran 50 s later, to save the post as a fixture.
+- The User-Agent was the same as in Session 1.
+- The raw log is [`tests/fixtures/comments/probe-log-s3.json`](../tests/fixtures/comments/probe-log-s3.json); the
+  time column is when each answer arrived.
+- Saved responses, used by `tests/comments/`: `tree-wi7uhk-limit5.json` (2), `tree-wi7uhk-parent-jqqr5hr.json`
+  (4), `ids-wi7uhk-3.json` (5), `search-wi7uhk-undervolt.json` (6), `search-wi7uhk-or.json` (9),
+  `search-wi7uhk-exclude.json` (10), `search-buildapc-phrase.json` (12), `post-wi7uhk-full.json` (26).
+
+## Requests
+
+Base `https://arctic-shift.photon-reddit.com/api`. `fields=…` is
+`id,subreddit,author,created_utc,retrieved_on,score,body,link_id,parent_id`. Requests 11–25 also had
+`limit=25&sort=desc&after=1792623395&before=1795215395` (the last 30 days).
+
+| # | UTC | Request | HTTP | Time | Result |
+|---|---|---|---|---|---|
+| 1 | 22:56:35 | status feed | 200 | 0.11 s | all components up |
+| 2 | 22:56:41 | `/comments/tree?link_id=wi7uhk&limit=5` | 200 | 0.72 s | 5 comments, 2 `more` stubs |
+| 3 | 22:56:48 | `/comments/tree?link_id=wi7uhk&limit=50&start_depth=1&start_breadth=2` | 200 | 0.66 s | all 22, no stubs |
+| 4 | 22:56:55 | `/comments/tree?link_id=wi7uhk&parent_id=t1_jqqr5hr&limit=50` | 200 | 0.78 s | jqqr5hr and its 4 replies |
+| 5 | 22:57:02 | `/comments/ids?ids=jqstn48,jqr4am2,jqqr5hr&fields=…` | 200 | 0.89 s | 3 |
+| 6 | 22:57:09 | `/comments/search?link_id=wi7uhk&body=undervolt&limit=100&fields=…` | 200 | 1.64 s | 4 |
+| 7 | 22:57:16 | `… link_id=wi7uhk&body="power limit" …` | 422 | 0.34 s | Timeout. Maybe slow down a bit |
+| 8 | 22:57:22 | `… link_id=wi7uhk&body=power limit …` | 422 | 0.26 s | Timeout. Maybe slow down a bit |
+| 9 | 22:57:29 | `… link_id=wi7uhk&body=undervolt OR underclock …` | 200 | 1.24 s | 6 |
+| 10 | 22:57:36 | `… link_id=wi7uhk&body=power -undervolt …` | 200 | 1.04 s | 8 |
+| 11 | 22:57:47 | `/comments/search?subreddit=buildapc&body=undervolt …` | 200 | 5.04 s | 25 |
+| 12 | 22:57:57 | `… body="power limit" …` | 200 | 3.28 s | 25 |
+| 13 | 22:58:05 | `… body=power limit …` | 200 | 2.24 s | 25 |
+| 14 | 22:58:11 | `… body=undervolt OR underclock …` | 422 | 0.33 s | Timeout. Maybe slow down a bit |
+| 15 | 22:58:18 | `… body=undervolt -laptop …` | 422 | 0.37 s | Timeout. Maybe slow down a bit |
+| 16 | 22:58:26 | `… body=undervolt …` | 200 | 2.52 s | 25 |
+| 17 | 22:58:33 | `… body="power limit" …` | 422 | 0.43 s | Timeout. Maybe slow down a bit |
+| 18 | 22:58:43 | `… body=power limit …` | 200 | 4.34 s | 25 |
+| 19 | 22:58:53 | `… body=undervolt OR underclock …` | 200 | 3.84 s | 25 |
+| 20 | 22:58:59 | `… body=undervolt -laptop …` | 422 | 0.26 s | Timeout. Maybe slow down a bit |
+| 21 | 22:59:05 | `… body=undervolt …` | 422 | 0.19 s | Timeout. Maybe slow down a bit |
+| 22 | 22:59:12 | `… body="power limit" …` | 422 | 0.33 s | Timeout. Maybe slow down a bit |
+| 23 | 22:59:18 | `… body=power limit …` | 422 | 0.15 s | Timeout. Maybe slow down a bit |
+| 24 | 22:59:27 | `… body=undervolt OR underclock …` | 200 | 3.68 s | 25 |
+| 25 | 22:59:34 | `… body=undervolt -laptop …` | 422 | 0.29 s | Timeout. Maybe slow down a bit |
+| 26 | 23:00:28 | `/posts/ids?ids=wi7uhk` (full object) | 200 | 0.59 s | 1 |
+
+No request got a 429. Every 422 came in under 0.5 s, so by Q7 every one was load shedding, not a real timeout.
+
+## Answers
+
+### S3-1. Which comment search syntax does `body` accept?
+
+**All four forms work.** Comment search is Postgres full-text search, and it applies the websearch syntax
+correctly whenever the archive is not shedding load.
+
+| Form | Example | r/buildapc, 30 days: 200 / sent | One thread (`link_id`): 200 / sent |
+|---|---|---|---|
+| one word | `undervolt` | 2 / 3 | 1 / 1 |
+| `"phrase"` | `"power limit"` | 1 / 3 | 0 / 1 |
+| two words (AND) | `power limit` | 2 / 3 | 0 / 1 |
+| `OR` | `undervolt OR underclock` | 2 / 3 | 1 / 1 |
+| `-exclude` | `undervolt -laptop`, `power -undervolt` | **0 / 3** | 1 / 1 |
+
+What the successful answers contained (checked word by word):
+
+- **Phrase:** 25 of 25 had "power limit" with the words next to each other.
+- **AND:** 25 of 25 had both words; 13 had them next to each other. So two words are a real AND, not a phrase.
+- **OR:** 25 of 25 had one of the words; 24 had "undervolt" and 2 "underclock" (newest first).
+- **Exclusion, in `wi7uhk`:** `power -undervolt` returned the 7 "power" comments without "undervolt", plus
+  `oczc53l`. That comment says "undervolt/underclock": Postgres reads a slash-joined pair as one path token, so
+  the word "undervolt" does not match it. The one-word query `undervolt` missed `oczc53l` for the same reason.
+- **Stemming:** `underclock` matched "underclocking"; `power` matched "power-limit".
+- **Load:** the 200s took 1.0–5.0 s, much slower than post listings (under 1 s). In a thread they took 1–1.6 s.
+
+Comparison with Session 1 (posts, Q6): there only a quoted phrase ever worked, 1 time in 3. On comments every
+form worked at least once, except exclusion at subreddit scope.
+
+**Assumption:** exclusion is not refused by the archive. It worked in a thread, and every failure was a fast
+422. But 0 of 3 is the worst score, and Postgres must check the excluded word on every candidate row. So the
+tool does not rely on it.
+
+**Rule change (T7, `search_comments`):** words (AND), `"phrases"` and `OR` pass through to the archive.
+`-word`, `-"phrase"` and `NOT word` are applied by the tool: it sends only the positive part, asks for 100
+results, filters them, and says so in `notes` and `coverage.after_local_exclusion`. ACCEPTANCE.md, Session 3,
+says this.
+
+### S3-2. What does a `more` stub in `comments/tree` look like?
+
+`{"kind": "more", "data": {"count", "id", "name", "parent_id", "depth", "children": [...]}}`.
+
+- `children` lists only the **direct** child IDs. `count` counts **every** comment behind the stub, replies
+  included. With `limit=5`: a top-level stub of `count` 15 with 7 IDs (7 top-level comments + 8 replies), and a
+  nested stub of `count` 2 with 1 ID. 5 + 15 + 2 = 22.
+- `id` is the first child's ID; `depth` was 1 in both stubs, so it is not the real depth.
+- `replies` is `""` for a comment with no replies, and a Listing otherwise.
+
+So to expand a stub, the tool needs each child's subtree, not only the children: `get_thread` adds up `count`
+for the totals, and `expand_comments` loads each child with `tree?parent_id=` (S3-4).
+
+### S3-3. What do `start_depth` and `start_breadth` do?
+
+**Nothing visible when `limit` covers the thread.** With `limit=50`, `start_depth=1` and `start_breadth=2`
+still returned all 22 comments, 4 levels deep. They probably only shape which comments come first when the
+limit cuts the tree. The tool does not use them: it limits depth and breadth itself (T10 sorts locally anyway).
+
+### S3-4. What does `comments/tree?parent_id=t1_X` return?
+
+**Comment X itself, with its whole subtree.** `parent_id=t1_jqqr5hr` returned jqqr5hr with its 4 replies, 3
+levels deep. `expand_comments` and `get_comment_context` use this: one request gives a comment and all its
+replies.
+
+### S3-5. Does `comments/ids` keep the order asked for?
+
+**Yes, in this one test.** Asked for `jqstn48,jqr4am2,jqqr5hr`, it answered in that order. The tool does not
+depend on it: it matches by `id`.
+
+## Rules changed because of these probes
+
+| File | Where | Change | Probe |
+|---|---|---|---|
+| ACCEPTANCE.md | Session 3, `search_comments` | Words, phrase and OR pass through; `-exclude` / `NOT` is applied locally on an over-fetched page | S3-1 |
+| EVALS.md | `read-post`, `thread-follow-up` | The case folders exist; `thread-follow-up` replays a recorded turn 1 | — |

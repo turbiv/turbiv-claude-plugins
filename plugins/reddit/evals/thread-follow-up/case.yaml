@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: thread-follow-up
+context:
+  # Turn 1 ("Summarize this post: …wi7uhk…"), recorded from a read-post run on 2026-11-20 and replayed with
+  # --resume. Only the user and assistant messages are kept (no system attachments).
+  history_file: history/turn1.jsonl

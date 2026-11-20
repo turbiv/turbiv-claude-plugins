@@ -1,0 +1,279 @@
+{
+ "data": [
+  {
+   "author": "Minuture_bender99",
+   "body": "If the 12400F and 14400F cost the same, I'd pick the 14400F. You're going from 4 cores on the 14100F to 6 performance cores plus 4 efficiency cores. Just check your exact H610 motherboard's BIOS support and power limits first, and whether the games you play are actually CPU-limited.",
+   "created_utc": 1795187762,
+   "id": "19sxd7cptbwv7",
+   "link_id": "t3_1y13wu0",
+   "parent_id": "t3_1y13wu0",
+   "retrieved_on": 1795191986,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "mig_f1",
+   "body": "Monitor cpu/gpu/ram usage, temperatures, clocks, frequencies, clocks, power draw to figure out which one(s) is the culprit during those frame drops.\n\nFor the CPU make sure you monitor per-core usage (not average) and make sure your GPU is uncapped. No power limits either.\n\nIt could be thermal throttling, VRAM exhaustion, power delivery issues, or slow disk access if you don't use SSD.\n\nWhat's your PSU, Ram soeed and cl, cpu-cooler, disk and chassis? Also what games give you these feame drops?\n\nNo good reason to go upgrade blindly.",
+   "created_utc": 1795177759,
+   "id": "19sx5rnmyissh",
+   "link_id": "t3_1y10kon",
+   "parent_id": "t1_19sx3hvp9v5tw",
+   "retrieved_on": 1795183211,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "BaronB",
+   "body": "A 9800X3D / 9850X3D are currently the fastest gaming CPU out there. The 9850X3D is a factory overclocked 9800X3D that gets you about 2% more performance... and is basically already at the limit for what you can get unless you get a golden sample. And even then, you're looking at maybe another <5% above that.\n\nA 9900X3D or 9900X would match the multi threaded performance of the 9955HX, though the non X3D CPUs are about 15\\~20% slower for gaming than the X3D ones (with the 9900X3D being one of the slowest Ryzen 9000 X3D CPUs for gaming).\n\nModern CPUs automatically overclock themselves within whatever thermal and power limits they have, and you can basically just turn off the power limit, undervolt a tiny bit, and they'll boost as far as they can go. But mostly all you get is about 50% higher power draw for *maybe* <10% more performance, and only if you have a really good liquid cooler and win the silicon lottery. Usually you'll get less than 5% better. Even if you do that, it's rare you're significantly CPU limited in games these days with a 9800X3D unless you're playing eSports titles on a 720hz monitor or Baldur's Gate 3.\n\n...\n\nFor a Ryzen 9000 CPU, the fastest RAM you want to get is DDR5 6400 CL30, and then you want to turn on FCLK:MCLK 1:1 in the BIOS. Otherwise you want to stick with DDR5 6000 CL30. Faster than that is actually *slower* for AM5 CPUs, and to get faster than 6000 CL30 you need to get to 8000 CL40, which most AM5 CPUs can't do. To get faster than 6400 CL30 you'd need to get up past DDR5 9000 or so, which so far only the Ryzen 8000 CPUs have can achieve (those are monolithic mobile CPU chips that are much slower than Ryzen 7000 CPUs).\n\nBrand doesn't matter that much, especially since overclocking doesn't really have much value for AM5 CPUs.\n\nIf you want to overclock your RAM for fun, go for it! Just don't expect better performance from it because mostly you'll just make it worse.\n\n...\n\nA B850 with three M.2 slots and enough USB ports for your needs is all you really need. Some more expensive boards will have better debug displays and on-board power / CMOS clear button which might be useful for extreme overclocking. But outside of that the X870 and X870E motherboards do not provide any performance benefits, just USB 4 ports and maybe an additional M.2 slot or two.\n\n...\n\nThe RTX 5070 Ti is a very good GPU. But so is the RX 9070 XT which is only about 2% slower on average and costs about 30% less. Nvidia stopped caring about selling GPUs to consumers and raised the prices of their GPUs by almost 2x. The 5070 Ti had an MSRP of $750 USD, and now regularly sells for closer to $1500, but you can still find 9070 XT for around $1000. With the budget you have, you can certainly afford the 5070 Ti though if you want to go that way.\n\nNeither GPUs are really going to do 4k in recent games, not without a lot of upscaling and / or lowering of quality settings. Though for video editing a 4k monitor would be useful so that might still be a route you want to go. You could look at dual mode 4k monitors that support both 4k 240hz and 1080p 480hz.\n\nIf you want to overclock, know that Nvidia has intentionally locked down how much you can boost the GPUs without a hacked bios and sometimes hardware modifications. And even after you do that, there are limits that people haven't been able to work around yet. You'll looking at maybe 10% more performance if you're lucky, more likely closer to 5%. And doing so *will* reduce the lifespan of the GPU by years as, again, these GPUs are often running right at the edge already. If you're looking to keep this system for a decade, I highly recommend against shunting.\n\nIf you do go with a 9070 XT, the way you \"overclock\" it is by undervolting it. Nothing else really does anything as it's already running at the redline, but undervolting lets it clock a little higher before hitting thermal or power limits. About 3\\~4% faster at most if you're lucky. People buy the 9070 non-XT and throw the 9070 XT BIOS onto it and overclock it up to past the 9070 XT performance, but about 3% faster than stock is basically the wall. The most factory overclocked model on the market barely hit 2% faster.\n\n...\n\nFor an OLED, I'd recommend a 27\" 1440p 280hz QD-OLED or Tandem WOLED, or a 32\" 4k Penta-Tandem QD-OLED. Really any of them will be amazing. There's barely any difference between the different brands. Buying a 240hz QD-OLED can be a bit of a trap as some are artificially limited in brightness to 200 nits, but the ones that *aren't* limited and can do proper HDR are often the same price.",
+   "created_utc": 1795151669,
+   "id": "19swmdg215pd1",
+   "link_id": "t3_1y0txki",
+   "parent_id": "t3_1y0txki",
+   "retrieved_on": 1795156957,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "Inevitable-Plane7175",
+   "body": "It's enough. If you pull the trigger make sure you're on the latest bios and using the intel default settings to ensure the chip has absolutely no chance of degrading. The issue is supposed to be solved on the newer chips but you never know. Definitely don't allow it to run without power limits (or OC it) even if you have the cooling to spare. Your GPU and cpu combined can push continuously around 550w, and potentially can have significantly higher transient spikes.\n\nAnother thing to check out is the quality of your mother boards power delivery and VRM cooling. Cheaper B tier boards don't have the capability to handle the extreme demands on the high end lga1700 k series chips and can end up VRM thermal throttling.\n\nAnother suggestion from me is to wait, intel are releasing a new batch of lga1700 cpus early next year, as an effort to exploit the ram crisis and give people on ddr4 an upgrade option.",
+   "created_utc": 1795119572,
+   "id": "19svyigqmfgox",
+   "link_id": "t3_1y0ijjf",
+   "parent_id": "t3_1y0ijjf",
+   "retrieved_on": 1795126287,
+   "score": 2,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "kyansan1",
+   "body": "I cannot find anything specific to the [Asus B760m-ayw](https://www.asus.com/motherboards-components/motherboards/others/b760m-ayw-wifi/), but similar motherboards like the [Gigabyte B660m ds3h](https://www.gigabyte.com/Motherboard/B660M-DS3H-DDR4-rev-10) (6+2+1 power phases, small vrm heatsink) and [Asus Prime B660m-k D4](https://www.asus.com/motherboards-components/motherboards/prime/prime-b660m-k-d4/) (6+1+1 power phases, small vrm heatsink) will lose performance at base power limits when paired with an i9 12900K (so PL1 at 125W) compared to other motherboards at the same power limits but with better VRMs, according to this video by hardware unboxed: https://youtu.be/r3o1Ebk_jCA?t=787\n\nThe i5 14600K typically draws less power than the i9 12900K so it will be affected less, but as it has the same PL1 of 125W, its performance can still take a hit in some games.",
+   "created_utc": 1795097054,
+   "id": "19svhru4w3tup",
+   "link_id": "t3_1xzvfpg",
+   "parent_id": "t1_19svdezxge95t",
+   "retrieved_on": 1795098176,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "thefastslow",
+   "body": "9070 XT is the best option around that price range. The non-XT is only a bit slower (\\~10%) and is more power efficient (220W vs 304W), but you can just adjust the power limit down on the XT if you want to get that. ",
+   "created_utc": 1795019071,
+   "id": "19stvsvw5da11",
+   "link_id": "t3_1xzio1q",
+   "parent_id": "t1_19stv0qivk7b6",
+   "retrieved_on": 1795026260,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "aragorn18",
+   "body": "Sure, happy to explain. First, I'm assuming that you mainly use your computer for gaming. If not, tell me so I can adjust my recommendations.\n\nFor gaming, the weakest link of your system is the GPU. Upgrading the GPU will give you biggest performance increase. But, to get a faster GPU you will almost certainly need a new power supply. An unknown 600-650W PSU isn't a great base to upgrade a system around. So, that's two components you need to upgrade.\n\nThe second weakest part of your system is the slow RAM. 2400 MT/s is quite slow. For a DDR4 system you want 3200 or 3600 MT/s. While there, you might as well double your capacity to 32GB. So, that's three components you need to upgrade.\n\nBut, if you're buying new RAM, and your budget can accommodate it, you might as well get DDR5 for the increased performance and better compatibility with new CPUs. DDR5 requires a new motherboard. Now we're at 4 components.\n\nYou could hypothetically reuse your CPU because it supports DDR5. But, the 13700F is a little slow compared to the K version of that CPU. It can't hold its max power limit for as long. Now we're talking 5 components being upgraded.\n\nThat leaves your case, storage, and CPU cooler. You don't actually mention what cooler you have. But, a new cooler doesn't actually cost that much. The case and SSD could totally be reused. But, at the point that you're upgrading so many components, it's generally better to just sell your existing PC as a whole unit rather than trying to sell individual pieces.\n\nThe final reason is that you have the budget for a whole new PC. There's no reason to be held back by your existing prebuilt system. Better to just start off fresh.",
+   "created_utc": 1794962595,
+   "id": "19ssptij05erk",
+   "link_id": "t3_1xyyhuy",
+   "parent_id": "t1_19ssoj3bjrcao",
+   "retrieved_on": 1794964072,
+   "score": 2,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "froz3nt",
+   "body": "Solid list. Going through your questions:\n\nNothing major I'd change. The biggest noise lever is the GPU. LACT supports the RX 9070 series on Linux (clocks, power limit, fan control), so undervolt or power-limit it and set a fan curve. MSI boards can also be awkward for fan control on Linux (the X870E Tomahawk uses an NCT6687-R chip whose in-kernel driver has no manual fan control), so set your case fan curves in the BIOS.\n\nThe EVO Plus is fine. At 2 TB both drives are rated 1,200 TBW. The Pro has its own DRAM cache and holds up better under sustained writes, but you'd only see that with massive sustained transfers, not gaming or light editing.\n\nThe Focus GX is a good pick, with hybrid fan control and a 10-year warranty. 1000W is overkill though. 9070 XT cards run 304 to 340W, so a 9800X3D build stays well under 850W. The 850W model is about 30 EUR cheaper at MSRP.\n\nLooks balanced. 6 intake vs 4 exhaust (3 on the rad plus the rear) is slightly positive pressure, and the case takes 3x140 mm on the side. Just run them all on a low-RPM curve.\n\nRAM is simply expensive right now. Team Group's CEO said the shortage hasn't peaked, with the worst stretch between Q4 2026 and Q2 2027, so waiting probably won't help. CL30 vs CL36 is usually around 0-2% on a 9800X3D, so I'd take the cheapest 2x16 DDR5-6000 EXPO kit and skip the RGB premium.\n\nWi-Fi 7 and Bluetooth modules on AM5 boards have been hit or miss on Linux, with Realtek RTL8922AE and MediaTek MT7925/MT7927 all having issues on some kernels. MSI doesn't say which chip this board has, so check with lspci. The module sits in a standard M.2 Key-E slot, so you can swap in an Intel AX210 or BE200, or just use the 5GbE port (Realtek 8126, picked up by the in-kernel r8169 driver). RGB is the weakest area. OpenRGB has an entry for the X870 Tomahawk WiFi, but MSI support is hit or miss, so treat RGB as set and forget.\n\nAlienware AW3426DW: 34\" 3440x1440 tandem QD-OLED at 280 Hz, and reviewers say it can finally handle text without fringing. The MSI MPG 341CQR X36 uses the same new panel at a higher refresh rate. For the side monitor get a 27\" 1440p. It has the same pixel density (about 110 PPI) and nearly the same height as the ultrawide, so scaling matches, whereas 4K would mean mixed scaling, which is fiddlier on Linux. Use DisplayPort, since it matters more on Linux than on Windows, and HDR works well under KDE. Expect some VRR flicker, which users report is worse on Linux than on Windows. Plasma on Wayland has an Automatic adaptive sync mode that only enables VRR for fullscreen apps, or you can cap fps and leave VRR off.",
+   "created_utc": 1794930502,
+   "id": "19ss1yn3bzjgi",
+   "link_id": "t3_1xyflyz",
+   "parent_id": "t3_1xyflyz",
+   "retrieved_on": 1794956396,
+   "score": 2,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "TheAutoManCan",
+   "body": "Whenever the topic of Alder Lake and/or Raptor Lake being hot chips comes up I always enjoy referencing TPU's testing on power limits. Even the mighty i9 can be limited down to 100-120W max and get 90-95% of its maximum relative performance in many applications. \n\n[12900K](https://www.techpowerup.com/review/intel-core-i9-12900k-alder-lake-tested-at-various-power-limits/) | [14900K](https://www.techpowerup.com/review/intel-core-i9-14900k-raptor-lake-tested-at-power-limits-down-to-35-w/) \n\nIntel absolutely dropped the ball by not enforcing default power profiles with motherboard manufacturers. But I'm sure there is an argument that doesn't help sell expensive motherboards with over the top VRM setups, massive AIO coolers, and higher capacity PSUs.",
+   "created_utc": 1794902789,
+   "id": "19srhd03gqyoy",
+   "link_id": "t3_1xxxr74",
+   "parent_id": "t1_19sqsb4cw3ode",
+   "retrieved_on": 1794905668,
+   "score": 2,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "dertechie",
+   "body": "Winter *is* coming (for Redditors in the Northern Hemisphere), after all.\n\nIn all seriousness, the i5s aren't nearly the space heaters the i7/i9 SKUs were, especially if you run Intel stock power limits.  Intel probably should have cracked down on default no limit power plans way sooner than it did.",
+   "created_utc": 1794869088,
+   "id": "19sqsb4cw3ode",
+   "link_id": "t3_1xxxr74",
+   "parent_id": "t1_19sqizbgszaxw",
+   "retrieved_on": 1794877403,
+   "score": 4,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "Calkidmd",
+   "body": "Ive ran my 9070xt on a 600w psu for a week, just lowered the power limit a lot. I did -30% just to make sure no issues. \n\nIf u feel uneasy about lower psu wattage, u can lower it by 10% and barely lose any performance\n\nI was waiting for my new beefier psu to arrive via mail, but still wanted to make sure the gpu was running properly, only reason i did this",
+   "created_utc": 1794867746,
+   "id": "19sqrb6zejjr4",
+   "link_id": "t3_1xxyeyo",
+   "parent_id": "t3_1xxyeyo",
+   "retrieved_on": 1794878792,
+   "score": 3,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "CrunchyTheSquirrel",
+   "body": "AMD recommends 750W for the stock board TDP of 304W. The Gigabyte OC has a higher power limit, and as other OC models, requires 3x 8 pin PCIe power. You're going to need just as many connectors.\n\nSet a power limit and try undervolting anyway.",
+   "created_utc": 1794857365,
+   "id": "19sqjldpv6ldu",
+   "link_id": "t3_1xxyeyo",
+   "parent_id": "t3_1xxyeyo",
+   "retrieved_on": 1794865782,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "Zombie_Tech",
+   "body": "I have that card and also a system with a 9900K equivalent.  The CPU will hit 250W under the most stressful load (eg: OCCT).  Most things like gaming it will be around 70W.  The video card at stock settings is 330W.  If you enable +10% power limit, it'll hit 360W.  Even with that you're still fine with that Seasonic PSU.  That suggestion is mainly for those that have semi-questionable power supplies.",
+   "created_utc": 1794857067,
+   "id": "19sqjderwc91g",
+   "link_id": "t3_1xxyeyo",
+   "parent_id": "t3_1xxyeyo",
+   "retrieved_on": 1794865782,
+   "score": 21,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "BaalManiek",
+   "body": "If you bought the GPU second-hand, that explains a lot, because you really have no idea what it went through before you got it. The RTX 3080 is already 5-6 years old, and a lot of them were bought during the crypto mining boom. You could easily be its 3rd or even 4th owner. :)\n\nI'd suggest running a test with the Power Limit set to 100%, using HWiNFO64 with logging enabled while gaming. Check the following:\n\n\\- GPU Hot Spot and GPU Memory Junction temperatures - if either goes above 105-110C, it's probably time for a repaste and new thermal pads. Your Gigabyte RTX 3080 Vision OC had notoriously bad VRAM thermal pads. They tend to harden like a rock over time. Read about it, it's true. \n\n\\- GPU 8-pin #1 / #2 Input Voltage\\*\\* - if the voltage drops below 11.4V, your PSU might be struggling to deliver stable power.  \n  \nI used to own an ASUS RTX 3080 10GB, and that thing could pull up to 380W in certain situations. The entire RTX 3080 series is known for running hot and producing massive power spikes. If your PSU is lower quality, those transient spikes can trigger its OCP/OPP protection, causing the GPU driver to crash. That would also explain why the card is stable with a reduced power limit: fewer power spikes, meaning the PSU isn't being pushed to its limits.",
+   "created_utc": 1794848822,
+   "id": "19sqd8qv61e78",
+   "link_id": "t3_1xwyi8r",
+   "parent_id": "t3_1xwyi8r",
+   "retrieved_on": 1794930555,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "FunnyVehicle7664",
+   "body": "These CPUs push extra power according to the temperature, so if you put better cooling it'll push more power into it if the demand is there. If you're more comfortable keeping it a little less toasty you can go into the bios CPU settings and look for power limit settings and drop them a bit. Maybe use hwmonitor or something to see how much the power draw reaches when it's hitting those temps, and drop it by 20 or so. ",
+   "created_utc": 1794797271,
+   "id": "19spax69swndt",
+   "link_id": "t3_1xx4ktn",
+   "parent_id": "t3_1xx4ktn",
+   "retrieved_on": 1794821847,
+   "score": 2,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "deepthroar",
+   "body": "Nvidia gpu for streaming, cpu to either a 5800x3d or 146/700k + good b760 ddr4 variant with a voltage and power limit.",
+   "created_utc": 1794788669,
+   "id": "19sp4iz1a17wl",
+   "link_id": "t3_1xx8yil",
+   "parent_id": "t3_1xx8yil",
+   "retrieved_on": 1794791412,
+   "score": 0,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "Responsible_Maybe742",
+   "body": "Parts list is mostly solid, a few notes:\n\n1. Mixed RAM: I wouldn't run the 2x8 2666 alongside the 2x16 3200. Four sticks of mixed speed/density often drops speeds and can cause instability on B760 DDR4. Just use the 2x16 and add a matching kit later if you need more.\n\n2. Cooling: the Phantom Spirit is a great cooler, but a 14700 will hit its power limits in all-core loads and run hot. It's fine for normal use, just check temps and set a sane power limit in BIOS.\n\n3. Compatibility: nothing looks wrong. Update the board BIOS before installing the CPU if you can.\n\n4. 850W is more than a 5060 Ti needs, 650-750W would do. Keep your OS and main programs on the NVMe and use the HDDs for bulk storage.",
+   "created_utc": 1794754292,
+   "id": "19soeyzbvozky",
+   "link_id": "t3_1xwwsie",
+   "parent_id": "t3_1xwwsie",
+   "retrieved_on": 1794761852,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "aragorn18",
+   "body": "The 7800X3D is a power limited CPU. Pretty much any cooler will work with that chip.",
+   "created_utc": 1794716301,
+   "id": "19snmq9v30vmt",
+   "link_id": "t3_1xwlz0n",
+   "parent_id": "t3_1xwlz0n",
+   "retrieved_on": 1794724743,
+   "score": 2,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "aragorn18",
+   "body": "You can try it. But, I don't know how much undervolting room that particular GPU has. Power limiting would be the better option.\n\nAs I said, this is really sketchy.",
+   "created_utc": 1794708220,
+   "id": "19sngq0cixblu",
+   "link_id": "t3_1xwjb8c",
+   "parent_id": "t1_19sngn8i41b7o",
+   "retrieved_on": 1794716327,
+   "score": 1,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "SmokBarrage",
+   "body": "The 2070s is getting pretty old it probably just needs a repaste. 80-85 is fine though but its getting up there. My 2070 was also running at similar temps because I was too lazy to repaste it. \n\nIf youre uncomfortable doing that you could try undervolting or power limiting a bit. As for the noise I can't really say without hearing it but yea when it gets toasty the fans are going to get loud which is normal. And the fans probably dont sound too great anymore because the bearings/motors are almost 10 years old.",
+   "created_utc": 1794684037,
+   "id": "19smyqu7c6jhf",
+   "link_id": "t3_1xwalgj",
+   "parent_id": "t3_1xwalgj",
+   "retrieved_on": 1794692457,
+   "score": 2,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "TesterM0nkey",
+   "body": "I already got the 9070xt new for 780$ at the time 9070 was 750$\n\nAfter undervolting and power limiting f it still outputs too much heat I’ll flash the 9070 too it.",
+   "created_utc": 1794679443,
+   "id": "19smvbw1bc8qt",
+   "link_id": "t3_1xw5zke",
+   "parent_id": "t1_19smugh55rjur",
+   "retrieved_on": 1794681372,
+   "score": 2,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "TesterM0nkey",
+   "body": "I didn’t think about it either it’s why I bought a 9070 and I’m going to power limit it.\n\nIt’s not bad in the winter but in the summer it’s pretty bad.",
+   "created_utc": 1794676154,
+   "id": "19smsvvj0bgw3",
+   "link_id": "t3_1xw5zke",
+   "parent_id": "t1_19smssg5cvadh",
+   "retrieved_on": 1794681372,
+   "score": 3,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "TesterM0nkey",
+   "body": "Power efficiency with power limiting you can get 5070ti at 150-170 watts while the 9070xt will be at 230 watts",
+   "created_utc": 1794673329,
+   "id": "19smqsagba5oh",
+   "link_id": "t3_1xw5zke",
+   "parent_id": "t1_19smqmqrv8ksl",
+   "retrieved_on": 1794681372,
+   "score": 6,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "qeeepy",
+   "body": "looks good to me, might check if the cpu power limits are where they should be in the bios, and use CO offset, the cooler is really subtle. Since PSU will block the GPU flow through, you'll need to undervolt/limit the GPU as well..",
+   "created_utc": 1794647507,
+   "id": "19sm7l8eg28bl",
+   "link_id": "t3_1xvxdz7",
+   "parent_id": "t1_19sm687il09sx",
+   "retrieved_on": 1794654080,
+   "score": 2,
+   "subreddit": "buildapc"
+  },
+  {
+   "author": "Arcangelo_Frostwolf",
+   "body": "Yeah, you can also go into your motherboard's BIOS settings and get the 5700X to behave more like a 5800X by changing power limit settings. Google Gemini can tell you in detail how it's done. You'll want a decent CPU cooler though, as the 5600G is a 65W chip and going to an overclocked 5700X that mimics the 105W 5800X will require better cooling.",
+   "created_utc": 1794630850,
+   "id": "19slv7hi992hu",
+   "link_id": "t3_1xvoy3j",
+   "parent_id": "t3_1xvoy3j",
+   "retrieved_on": 1794639027,
+   "score": 1,
+   "subreddit": "buildapc"
+  }
+ ]
+}

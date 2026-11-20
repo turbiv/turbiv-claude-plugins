@@ -280,6 +280,19 @@ class ExistingCardTest(ApplyBase):
         self.assertEqual([s["id"] for s in c["sessions"]].count("aaaa1111-x"), 1)
         self.assertEqual(c["sessions"][0], {"id": "aaaa1111-x", "title": "Title of aaaa1111-x", "date": "2026-11-18T10:00:00Z"})
 
+    def test_session_read_again_replaces_all_its_log_lines(self):
+        old = [{"date": "2026-11-17T10:00:00Z", "text": "Took the request for a leaderboard.", "session": "aaaa1111-x"},
+               {"date": "2026-11-01T10:00:00Z", "text": "Old work", "session": "old-1"}]
+        self.existing = {"sauna-ab12": card(log=old)}
+        self.sessions[0]["again"] = True
+        self.apply(self.one())
+        self.assertEqual([e["text"] for e in self.doc("cards/sauna-ab12")["log"]], ["Did more.", "Old work"])
+        # Without --again, the earlier line of the same session stays.
+        self.sessions[0]["again"] = False
+        self.apply(self.one())
+        self.assertEqual([e["text"] for e in self.doc("cards/sauna-ab12")["log"]],
+                         ["Did more.", "Took the request for a leaderboard.", "Old work"])
+
     def test_new_repo_and_folder_are_added(self):
         self.sessions[0].update(repo="other", repo_root="/work/other", folder="/work/other")
         self.apply(self.one())

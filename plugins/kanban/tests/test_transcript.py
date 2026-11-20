@@ -236,3 +236,44 @@ class DigestTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StepsTest(unittest.TestCase):
+    """Each request with how its reply began (the 2026-11-20 review: a leaderboard
+    built in the middle of a session was reported as only asked for)."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def session(self, n, name="s.jsonl"):
+        entries = []
+        for i in range(n):
+            ts = "2026-11-10T10:%02d:00.000Z" % i
+            entries.append(fx.user("ask %d" % i, ts))
+            entries.append(fx.assistant("Working on %d." % i, ts.replace(":00.000", ":10.000"),
+                                        tools=[("Edit", "/w/f%d" % i)]))
+            entries.append(fx.tool_result(ts.replace(":00.000", ":20.000")))
+            entries.append(fx.assistant("Built %d and checked it." % i, ts.replace(":00.000", ":30.000")))
+        return fx.write(self.tmp / name, entries)
+
+    def test_each_request_has_the_last_text_of_its_turn(self):
+        d = transcript.digest(self.session(3))
+        self.assertEqual(d["steps"], [{"n": i + 1, "ask": "ask %d" % i, "outcome": "Built %d and checked it." % i}
+                                      for i in range(3)])
+        self.assertEqual(d["steps_left_out"], 0)
+
+    def test_a_long_session_keeps_the_first_and_the_last_requests(self):
+        d = transcript.digest(self.session(20))
+        head, tail = transcript.STEPS_HEAD, transcript.STEPS_TAIL
+        self.assertEqual(len(d["steps"]), head + tail)
+        self.assertEqual(d["steps_left_out"], 20 - head - tail)
+        self.assertEqual([s["n"] for s in d["steps"]], list(range(1, head + 1)) + list(range(21 - tail, 21)))
+        self.assertEqual(d["steps"][-1], {"n": 20, "ask": "ask 19", "outcome": "Built 19 and checked it."})
+
+    def test_since_keeps_only_the_new_requests(self):
+        d = transcript.digest(self.session(4), since="2026-11-10T10:01:45Z")
+        self.assertEqual([s["ask"] for s in d["steps"]], ["ask 2", "ask 3"])
+
+    def test_a_request_with_no_reply_yet(self):
+        p = fx.write(self.tmp / "q.jsonl", [fx.user("Only a question", "2026-11-10T10:00:00.000Z")])
+        self.assertEqual(transcript.digest(p)["steps"], [{"n": 1, "ask": "Only a question", "outcome": ""}])

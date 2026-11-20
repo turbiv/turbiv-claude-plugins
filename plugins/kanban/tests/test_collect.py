@@ -97,6 +97,27 @@ class CollectTest(unittest.TestCase):
         self.assertEqual(s["prompts"], ["Make the temperature bigger"])  # only what is new
         self.assertEqual(s["known_cards"], ["c2"])
 
+    def test_again_reads_a_synced_session_from_its_start(self):
+        # A card that sync wrote wrong: read its session again, also when nothing is new
+        # and the file is older than the scan window.
+        self.transcript("86a44c20-full-id", days_ago=40)
+        self.transcript("s-other", days_ago=40)
+        synced = {"86a44c20-full-id": {"cards": ["sauna-ab12"], "end": "2026-11-10T10:06:00Z"}}
+        d = collect.run(self.data, synced, self.projects, None, NOW, again=["86a44c20"])
+        self.assertEqual(self.ids(d), ["86a44c20-full-id"])
+        s = d["sessions"][0]
+        self.assertTrue(s["again"])
+        self.assertEqual(s["prompts"], ["Build the sauna card for the dashboard", "Make the temperature bigger"])
+        self.assertEqual(s["known_cards"], ["sauna-ab12"])
+        self.assertEqual(d["again_missing"], [])
+        md = (self.data.work / "digest.md").read_text()
+        self.assertIn("read again from the start", md)
+        self.assertIn("asked 1: Build the sauna card for the dashboard\n  → Looking at it.", md)
+
+    def test_again_names_an_id_it_cannot_find(self):
+        d = collect.run(self.data, {}, self.projects, None, NOW, again=["nothere1", "abc"])
+        self.assertEqual(d["again_missing"], ["nothere1"])  # under 6 characters: ignored
+
     def test_work_after_a_mid_turn_sync_is_not_lost(self):
         # A sync ran while a turn was going. The rest of that turn has no new prompt.
         self.transcript("s-mid")

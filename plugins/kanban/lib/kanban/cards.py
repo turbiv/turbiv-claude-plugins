@@ -166,8 +166,10 @@ def merge(existing, decision, sessions, now, github=None):
             if status in OPEN_AGAIN and want != "done" and log:
                 log[0]["text"] = cut("Reopened: " + log[0]["text"], LOG_MAX)
     seen = {(e["session"], e["date"]) for e in log}
+    # A session read again from its start (`collect --again`) replaces all its old lines.
+    again = {s["id"] for s, _ in sessions if s.get("again")}
     old_log = [e for e in _list(existing.get("log")) if isinstance(e, dict)
-               and (e.get("session"), e.get("date")) not in seen]
+               and (e.get("session"), e.get("date")) not in seen and e.get("session") not in again]
     card["log"] = sorted(log + old_log, key=lambda e: _s(e.get("date")), reverse=True)[:LIST_MAX]
     ids = {s["id"] for s in sess}
     old_sess = [s for s in _list(existing.get("sessions")) if isinstance(s, dict) and s.get("id") not in ids]

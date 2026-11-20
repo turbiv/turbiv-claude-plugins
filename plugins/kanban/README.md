@@ -70,6 +70,7 @@ Your cards stay.
 |---|---|
 | `/kanban:setup` | Makes or links the board, runs the first sync, offers the daily task |
 | `/kanban:sync` | Puts the sessions that are not on the board yet on their cards. Also: "sync my board" |
+| `/kanban:sync again <session id>` | Reads one session again from its start and rewrites its card. For a card that sync got wrong |
 | `/kanban:board [request]` | Shows the open cards, or changes one. Also: "what am I working on?", "where did I leave off on X?", "add an idea: ...", "mark X done", "merge X into Y" |
 
 ## How it stays current
@@ -90,7 +91,7 @@ What happens in a sync:
   has 1.5 seconds, so it must be tiny and must never fail.
 - `kanban-tool` finds the new sessions (from the log, and from a scan of `~/.claude/projects`, so a
   session is found also when its hook did not fire). It boils each one down to a short digest: title,
-  what you asked, how it ended, files edited, git state.
+  each thing you asked with how Claude's answer to it began, how it ended, files edited, git state.
 - Claude reads the digests, never the raw transcripts. It puts each session on a card and writes
   "where it stands", "next step" and one history line.
 - `kanban-tool` applies the rules (dates, lists, status, limits), Claude writes the cards to the board

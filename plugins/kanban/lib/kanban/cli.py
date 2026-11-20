@@ -141,7 +141,15 @@ def cmd_collect(a, data, out):
     existing, _, synced = cards.load_db(data)
     projects = Path(os.path.expanduser(a.projects)) if a.projects else Path(os.path.expanduser("~/.claude/projects"))
     now = _now()
-    digest = collect.run(data, synced or {}, projects, a.scan_days, now, cards=existing)
+    again = a.again or []
+    short = [x for x in again if len(x) < 6]
+    if short:
+        out.write("REFUSED: --again needs at least the first 6 characters of a session id: %s\n" % ", ".join(short))
+        return 2
+    digest = collect.run(data, synced or {}, projects, a.scan_days, now, cards=existing, again=again)
+    if digest.get("again_missing"):
+        out.write("No transcript found for --again %s. It may be older than 30 days and deleted.\n"
+                  % ", ".join(digest["again_missing"]))
     n = len(digest["sessions"])
     left = ", ".join("%s %d" % (k.replace("_", " "), v) for k, v in sorted(digest["skipped"].items()) if v)
     if n == 0:
@@ -279,6 +287,9 @@ def main(argv=None):
     sp = add("collect", cmd_collect, "digest the sessions that are not on the board")
     sp.add_argument("--scan-days", type=int, help="look this many days back instead of since the last sync")
     sp.add_argument("--projects", help="the transcript folder (default ~/.claude/projects)")
+    sp.add_argument("--again", action="append", metavar="SESSION",
+                    help="read this session again from its start, also when it is synced (a card sync wrote wrong); "
+                         "the session id or its first 6 or more characters; can be given more than once")
     add("index", cmd_index, "print the cards of the saved board")
     sp = add("apply", cmd_apply, "merge the decision JSON (stdin, or --file) into the cards")
     sp.add_argument("--file", help="read the decision from this file instead of stdin")

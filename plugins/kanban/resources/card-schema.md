@@ -61,6 +61,21 @@ Staleness is not stored. The page computes it: a `todo` or `doing` card is stale
 | `last_sync` | ISO time of the last sync |
 | `stale_days`, `cold_days` | `14` and `30` |
 
+## `meta/projects`
+
+The color of each project. A card's project is its first repo, and the page colors the card by it (a
+stripe on the left edge, and a tint and dot on the repo tags and filter chips).
+
+| Field | Meaning |
+|---|---|
+| `colors` | a map of repo name to a color number: `1` blue, `2` orange, `3` aqua, `4` yellow, `5` pink, `6` green, `7` violet, `8` red |
+
+The owner's page writes it. A repo without a number gets the color used by the fewest projects on the
+board (ties: the lowest number; repos with more cards first), and the page stores it, so a project
+keeps its color. After eight projects, colors repeat. The owner changes a color in a card's dialog,
+under Repos. Sync never reads or writes this document. Read-only viewers compute missing colors the
+same way and do not write.
+
 ## `meta/synced`
 
 `sessions`: a map of session id to `{cards: [ids], end: ISO time, machine: id}`. It is the record of

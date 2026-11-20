@@ -1,6 +1,6 @@
 {
   "name": "kanban",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A kanban board of your work streams that updates itself from your Claude sessions. Each card says where you left off and what comes next",
   "author": {
     "name": "Ivan Turbin"

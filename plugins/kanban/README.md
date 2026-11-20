@@ -15,6 +15,9 @@ current: a small hook notes each session, and a sync turns the sessions into car
 - **On each card:** where it stands, the next step, what was done lately, the repos it touched, links,
   and the Claude sessions behind it (with a button that copies `claude --resume <id>`).
 - **Stale marks:** a Todo or Doing card is marked after 14 days without work, and marked cold after 30.
+- **A color per project:** each card has a stripe in the color of its project (its first repo), and the
+  repo tags and filter chips have the same color. A new project gets a color of its own, and keeps it.
+  Change it in the card's dialog, under Repos.
 - **A repo filter**, a search, and a "Stale" switch.
 - **Editing on the page:** drag a card to another column, edit its title, next step and notes, add a
   card. What you set by hand stays: sync changes a status only when there is newer work on the card,

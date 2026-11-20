@@ -2,7 +2,11 @@
 
 A band above the prompt in the Claude apps (desktop, VS Code, mobile).
 
-![context-band: a sleeping crab and Idle, then context fill, plan usage and the current Spotify track](docs/band.webp)
+![context-band: a crab with a badge of 2 and "2 shells running", then context fill, plan usage and the current Spotify track](docs/band-shells.webp)
+
+With the count opened, the band lists each thing that runs:
+
+![context-band: the band above, with a list under it of the two running shell commands](docs/band-shells-list.webp)
 
 It shows:
 

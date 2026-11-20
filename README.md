@@ -19,9 +19,13 @@ Each plugin's README says what it needs and how to use it. Read it before instal
 
 ### context-band
 
-The band in the desktop app, with nothing running:
+The band in the desktop app while the session runs two shell commands:
 
-![context-band: a sleeping crab and Idle, then context fill, plan usage and the current Spotify track](plugins/context-band/docs/band.webp)
+![context-band: a crab with a badge of 2 and "2 shells running", then context fill, plan usage and the current Spotify track](plugins/context-band/docs/band-shells.webp)
+
+The same band with the count opened, listing each command:
+
+![context-band: the band above, with a list under it of the two running shell commands](plugins/context-band/docs/band-shells-list.webp)
 
 ### openai-images
 

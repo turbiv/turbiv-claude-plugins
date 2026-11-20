@@ -13,7 +13,10 @@ current: a small hook notes each session, and a sync turns the sessions into car
 - **Two ways to close a card:** Done (finished) and Won't do (given up). Won't do and Archived cards are
   hidden until you turn on the "Closed" switch.
 - **On each card:** where it stands, the next step, what was done lately, the repos it touched, links,
-  and the Claude sessions behind it (with a button that copies `claude --resume <id>`).
+  and the Claude sessions behind it. "Open in Claude" opens a session in the desktop app
+  (`claude://resume?session=<id>`); "Copy resume command" copies `claude --resume <id>` for the terminal.
+  Each line of "Done lately" links to its session too.
+- **Where it stands** is 2 to 4 short bullets, so many cards can be scanned at once.
 - **What changed since you last looked:** cards that are new, moved to another column, renamed or
   updated since your last visit carry a badge, and a moved card says where it came from. The line at the
   top counts them ("2 new · 3 moved · 4 updated") and, clicked, shows only those cards and the titles of
@@ -25,9 +28,13 @@ current: a small hook notes each session, and a sync turns the sessions into car
   repo tags and filter chips have the same color. A new project gets a color of its own, and keeps it.
   Change it in the card's dialog, under Repos.
 - **A repo filter**, a search, and a "Stale" switch.
+- **Statuses set by sync:** Doing means work was left in the middle. Todo means a step is finished and
+  something new is left. Done means finished; a small loose end, such as a push, stays as the next step.
+  Done cards are archived after 7 days.
 - **Editing on the page:** drag a card to another column, edit its title, next step and notes, add a
   card. What you set by hand stays: sync changes a status only when there is newer work on the card,
-  never moves a card to Done, and never touches a Won't do card. Claude learns of your changes at the
+  and never touches a Won't do card. Write what you did outside Claude in the notes ("ordered the
+  printer"): sync reads them. Claude learns of your changes at the
   next sync: from then on a closed card is no longer in the context it gets at session start.
 - **Context at session start:** when you start Claude in a project, Claude already knows the open cards
   of that project.

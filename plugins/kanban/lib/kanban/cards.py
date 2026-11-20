@@ -13,12 +13,16 @@ from datetime import datetime, timedelta, timezone
 from .transcript import cut
 
 TITLE_MAX, SUMMARY_MAX, NEXT_MAX, LOG_MAX = 80, 600, 200, 240
+SUMMARY_BULLETS, BULLET_MAX = 4, 120   # `summary` is a few short bullets, one per line
 LIST_MAX = 20                 # entries kept in `log` and in `sessions`
 MAX_CARDS_PER_SESSION = 3
-ARCHIVE_DAYS = 30
+ARCHIVE_DAYS = 7              # done cards leave the Done column after a week
 SYNCED_DAYS = 90
 BATCH_MAX = 50                # ArtifactData takes at most 50 writes in one batch
 NEW_STATUSES = ("idea", "todo", "doing", "done")
+# The statuses sync may give a card that is already on the board, when it has newer work.
+# "idea" only keeps an idea an idea; sync never turns other work back into one.
+SYNC_STATUSES = ("idea", "todo", "doing", "done")
 OPEN_AGAIN = ("done", "archived")
 # "dropped" (Won't do) is only ever set by the owner, and sync never changes it:
 # newer work on such a card is logged, but the card stays where the owner put it.
@@ -50,6 +54,23 @@ def _s(v):
 
 def _list(v):
     return v if isinstance(v, list) else []
+
+
+_BULLET = re.compile(r"^\s*(?:[-*\u2022]|\d+[.)])\s+")
+
+
+def summary_text(text):
+    """The summary as it is stored: at most 4 bullets of at most 120 characters,
+    one per line, each starting with "- ". A summary of one line with no bullet
+    mark is a paragraph (cards from before the bullets) and is kept as it is."""
+    text = _s(text)
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    if not lines:
+        return ""
+    if len(lines) == 1 and not _BULLET.match(lines[0]):
+        return cut(lines[0], SUMMARY_MAX)
+    items = [cut(_BULLET.sub("", l, count=1).strip(), BULLET_MAX) for l in lines]
+    return "\n".join("- " + i for i in [i for i in items if i][:SUMMARY_BULLETS])
 
 
 def _check_secret(text, where):
@@ -115,7 +136,7 @@ def merge(existing, decision, sessions, now, github=None):
         status = decision.get("status") if decision.get("status") in NEW_STATUSES else "doing"
         card.update({
             "title": cut(_s(decision.get("title")), TITLE_MAX), "status": status,
-            "summary": cut(_s(decision.get("summary")), SUMMARY_MAX),
+            "summary": summary_text(decision.get("summary")),
             "next_step": cut(_s(decision.get("next_step")), NEXT_MAX),
             "log": log[:LIST_MAX], "sessions": sess[:LIST_MAX],
             "repos": _union([], repos), "folders": _union([], folders), "links": _add_links([], links),
@@ -127,18 +148,22 @@ def merge(existing, decision, sessions, now, github=None):
 
     # --- an existing card: the owner's fields stay as they are ---
     if _s(decision.get("summary")).strip():
-        card["summary"] = cut(decision["summary"], SUMMARY_MAX)
+        card["summary"] = summary_text(decision["summary"])
     if "next_step" in decision and isinstance(decision["next_step"], str):
         # A next step the owner wrote after this work is kept.
         if not (_s(existing.get("next_step_edited_at")) > new_end):
             card["next_step"] = cut(decision["next_step"], NEXT_MAX)
-    # A status set by hand stays until there is newer work.
-    if new_end and new_end > _s(existing.get("status_changed_at")):
+    # A status set by hand stays until there is newer work. Won't do stays always.
+    if new_end and new_end > _s(existing.get("status_changed_at")) and existing.get("status") != "dropped":
         status = existing.get("status")
-        if status in ("idea", "todo") or status in OPEN_AGAIN:
-            card["status"] = "doing"
+        want = decision.get("status")
+        if want not in SYNC_STATUSES or (want == "idea" and status != "idea"):
+            # No status in the decision: newer work makes the card active.
+            want = "doing" if status in ("idea", "todo") or status in OPEN_AGAIN else None
+        if want and want != status:
+            card["status"] = want
             card["status_changed_at"] = iso(now)
-            if status in OPEN_AGAIN and log:
+            if status in OPEN_AGAIN and want != "done" and log:
                 log[0]["text"] = cut("Reopened: " + log[0]["text"], LOG_MAX)
     seen = {(e["session"], e["date"]) for e in log}
     old_log = [e for e in _list(existing.get("log")) if isinstance(e, dict)
@@ -266,7 +291,7 @@ def plan(data, decision, now):
         raise Refused("these sessions are in the digest but in no card and not in `skip`: %s. "
                       "Put each one on a card or in `skip` with a reason." % ", ".join(left))
 
-    # Done cards leave the board after 30 days.
+    # Done cards leave the Done column after ARCHIVE_DAYS.
     limit = iso(now - timedelta(days=ARCHIVE_DAYS))
     touched = {w["doc_id"] for w in writes}
     for cid, c in existing.items():

@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,15 +28,22 @@ def _days(ts, now):
     return max(0, (now - then).days)
 
 
+_SESSION_ID = re.compile(r'"session_id": *"([^"]+)"')
+
+
 def _pending(data):
-    n = 0
+    """How many sessions the hook log names. Counted by session id, from start and
+    end lines alike: in the desktop app a session is seldom closed, so its end line
+    may never come."""
+    ids = set()
     for p in [data.path / "pending.jsonl"] + data.processing_files():
         try:
             with open(str(p), "r", encoding="utf-8", errors="replace") as f:
-                n += sum(1 for line in f if '"ev":"end"' in line)
+                for line in f:
+                    ids.update(_SESSION_ID.findall(line)[:1])
         except OSError:
             pass
-    return n
+    return len(ids)
 
 
 def _last_sync(data):
@@ -73,6 +81,9 @@ def card_index(cards_by_id, now, full=True):
             lines.append("  stands: " + cut(c["summary"], 220 if full else 160))
         if c.get("next_step") and c.get("status") not in ("done", "dropped", "archived"):
             lines.append("  next: " + cut(c["next_step"], 140))
+        if isinstance(c.get("notes"), str) and c["notes"].strip():
+            # The owner's own words: often progress made outside Claude.
+            lines.append("  owner's notes: " + cut(c["notes"], 300 if full else 160))
         if full:
             titles = [cut(str(s.get("title") or ""), 50) for s in (c.get("sessions") or [])[:3] if isinstance(s, dict)]
             if titles:

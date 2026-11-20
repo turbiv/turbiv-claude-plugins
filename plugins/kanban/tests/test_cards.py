@@ -167,11 +167,58 @@ class ExistingCardTest(ApplyBase):
         for never in ("notes", "order", "title", "created", "status", "status_changed_at", "repos", "folders"):
             self.assertNotIn(never, c)
 
-    def test_title_and_done_are_never_set_on_an_existing_card(self):
-        self.apply(self.one(title="Renamed by sync", status="done"))
+    def test_title_is_never_set_on_an_existing_card(self):
+        self.apply(self.one(title="Renamed by sync"))
+        self.assertNotIn("title", self.doc("cards/sauna-ab12"))
+
+    def test_sync_sets_done_todo_or_doing_after_newer_work(self):
+        # The review of 2026-11-20: Sauna was finished, Home Assistant had only follow-ups left.
+        for want in ("done", "todo"):
+            self.apply(self.one(status=want))
+            c = self.doc("cards/sauna-ab12")
+            self.assertEqual(c["status"], want)
+            self.assertEqual(c["status_changed_at"], "2026-11-19T12:00:00Z")
+            self.assertEqual(c["log"][0]["text"], "Did more.")
+        self.existing = {"sauna-ab12": card(status="todo", status_changed_at="2026-11-10T00:00:00Z")}
+        self.apply(self.one(status="doing"))
+        self.assertEqual(self.doc("cards/sauna-ab12")["status"], "doing")
+
+    def test_same_status_writes_no_status(self):
+        self.apply(self.one(status="doing"))
+        self.assertNotIn("status", self.doc("cards/sauna-ab12"))
+
+    def test_status_set_by_hand_wins_over_the_decision_until_newer_work(self):
+        self.existing = {"sauna-ab12": card(status="doing", status_changed_at="2026-11-18T23:00:00Z")}
+        self.apply(self.one(status="done"))
+        self.assertNotIn("status", self.doc("cards/sauna-ab12"))
+
+    def test_done_card_with_a_follow_up_is_reopened_as_todo(self):
+        self.existing = {"sauna-ab12": card(status="done", status_changed_at="2026-11-10T00:00:00Z")}
+        self.apply(self.one(status="todo"))
         c = self.doc("cards/sauna-ab12")
-        self.assertNotIn("title", c)
-        self.assertNotIn("status", c)
+        self.assertEqual(c["status"], "todo")
+        self.assertTrue(c["log"][0]["text"].startswith("Reopened: "))
+
+    def test_archived_card_finished_again_is_done_without_reopened(self):
+        self.existing = {"sauna-ab12": card(status="archived", status_changed_at="2026-11-10T00:00:00Z")}
+        self.apply(self.one(status="done"))
+        c = self.doc("cards/sauna-ab12")
+        self.assertEqual(c["status"], "done")
+        self.assertEqual(c["log"][0]["text"], "Did more.")
+
+    def test_idea_only_stays_an_idea(self):
+        self.existing = {"sauna-ab12": card(status="idea", status_changed_at="2026-11-10T00:00:00Z")}
+        self.apply(self.one(status="idea"))
+        self.assertNotIn("status", self.doc("cards/sauna-ab12"))
+        # Sync never turns active work back into an idea: the decision is ignored.
+        self.existing = {"sauna-ab12": card(status="doing")}
+        self.apply(self.one(status="idea"))
+        self.assertNotIn("status", self.doc("cards/sauna-ab12"))
+
+    def test_unknown_status_falls_back_to_the_old_rule(self):
+        self.existing = {"sauna-ab12": card(status="todo", status_changed_at="2026-11-10T00:00:00Z")}
+        self.apply(self.one(status="archived"))
+        self.assertEqual(self.doc("cards/sauna-ab12")["status"], "doing")
 
     def test_todo_becomes_doing_after_newer_work(self):
         self.existing = {"sauna-ab12": card(status="todo", status_changed_at="2026-11-10T00:00:00Z")}
@@ -196,7 +243,7 @@ class ExistingCardTest(ApplyBase):
     def test_wont_do_card_is_never_reopened(self):
         # The owner dropped it. Newer work is logged, but the status is the owner's.
         self.existing = {"sauna-ab12": card(status="dropped", status_changed_at="2026-11-10T00:00:00Z")}
-        self.apply(self.one())
+        self.apply(self.one(status="done"))
         c = self.doc("cards/sauna-ab12")
         self.assertNotIn("status", c)
         self.assertNotIn("status_changed_at", c)
@@ -251,13 +298,39 @@ class ExistingCardTest(ApplyBase):
         synced = self.doc("meta/synced")["sessions"]
         self.assertEqual(sorted(synced["aaaa1111-x"]["cards"]), ["other-cd34", "sauna-ab12"])
 
-    def test_done_card_is_archived_after_30_days(self):
-        self.existing["old-done"] = card(title="Old", status="done", status_changed_at="2026-10-19T11:00:00Z")
-        self.existing["new-done"] = card(title="New", status="done", status_changed_at="2026-10-25T11:00:00Z")
+    def test_done_card_is_archived_after_7_days(self):
+        self.existing["old-done"] = card(title="Old", status="done", status_changed_at="2026-11-12T11:00:00Z")
+        self.existing["new-done"] = card(title="New", status="done", status_changed_at="2026-11-12T13:00:00Z")
         w = self.apply({"cards": [], "skip": self.all_skipped("aaaa1111-x", "bbbb2222-x")})
         self.assertEqual(self.doc("cards/old-done"), {"status": "archived", "status_changed_at": "2026-11-19T12:00:00Z"})
         self.assertNotIn("cards/new-done", w)
         self.assertNotIn("cards/sauna-ab12", w)
+
+
+class SummaryTest(ApplyBase):
+    def test_bullets_are_kept_short_and_few(self):
+        long = "x" * 200
+        text = "* One\n\n- Two\n\u2022 Three\n1. Four\n- Five\n- " + long
+        out = cards.summary_text(text)
+        self.assertEqual(out.split("\n"), ["- One", "- Two", "- Three", "- Four"])
+        out = cards.summary_text("- A\n- " + long)
+        self.assertEqual(len(out.split("\n")[1]), 2 + cards.BULLET_MAX)
+        self.assertTrue(out.endswith("\u2026"))
+
+    def test_lines_without_marks_become_bullets(self):
+        self.assertEqual(cards.summary_text("Built the card.\nThe push is open."), "- Built the card.\n- The push is open.")
+
+    def test_a_paragraph_stays_a_paragraph(self):
+        self.assertEqual(cards.summary_text("  One   paragraph. "), "One paragraph.")
+        self.assertEqual(cards.summary_text(""), "")
+        self.assertEqual(cards.summary_text(None), "")
+
+    def test_apply_stores_bullets(self):
+        self.existing = {"sauna-ab12": card()}
+        self.apply({"cards": [{"id": "sauna-ab12", "summary": "- Leaderboard built\n- Alert at 60 \u00b0C",
+                               "sessions": [{"id": "aaaa1111-x", "log": "x"}]}],
+                    "skip": self.all_skipped("bbbb2222-x")})
+        self.assertEqual(self.doc("cards/sauna-ab12")["summary"], "- Leaderboard built\n- Alert at 60 \u00b0C")
 
 
 class MetaTest(ApplyBase):
@@ -384,3 +457,34 @@ class BatchSplitTest(ApplyBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CardListTest(unittest.TestCase):
+    """The card list that sync reads (`collect` prints it)."""
+
+    def test_owner_notes_are_in_the_list(self):
+        from kanban import cli
+        text = cli.card_index({"wii-ab12": card(title="Wii homebrew", status="todo",
+                                                notes="Wii is now homebrewed,\nno roms yet")}, NOW)
+        self.assertIn("  owner's notes: Wii is now homebrewed, no roms yet", text)
+        self.assertNotIn("owner's notes", cli.card_index({"x": card(notes="  ")}, NOW))
+
+
+class PendingCountTest(unittest.TestCase):
+    def test_sessions_are_counted_by_id_from_start_and_end_lines(self):
+        from kanban import cli
+        tmp = Path(os.path.realpath(tempfile.mkdtemp()))
+        data = Data(tmp / "data")
+        data.save_config({"url": "u"})
+        lines = [
+            {"ev": "start", "in": {"session_id": "a"}},
+            {"ev": "start", "in": {"session_id": "a"}},
+            {"ev": "end", "in": {"session_id": "a"}},
+            {"ev": "start", "in": {"session_id": "b"}},
+        ]
+        with open(str(data.path / "pending.jsonl"), "w") as f:
+            for l in lines:
+                f.write(json.dumps(l, separators=(",", ":")) + "\n")
+            f.write(json.dumps({"ev": "end", "in": {"session_id": "c"}}) + "\n")  # kanban-tool's own spacing
+            f.write("not json\n")
+        self.assertEqual(cli._pending(data), 3)

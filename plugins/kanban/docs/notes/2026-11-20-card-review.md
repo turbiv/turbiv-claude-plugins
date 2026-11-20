@@ -167,3 +167,24 @@ the start of the review found these edits by hand:
 5. **A way back to the session is missing** (G2). The page has only "Copy resume command".
 6. **Done should clear sooner** (G3). Today: archived after 30 days.
 7. **The reminder note at session start rarely shows** in the desktop app (side finding above).
+
+## What was built (plugin 0.3.0, page version 6)
+
+The owner agreed to all eight proposals ("Yes, build all 8").
+
+| # | Pattern | Change |
+|---|---|---|
+| 1 | Status (1, G4) | Sync gives every card in the decision a status: `doing` (left in the middle), `todo` (a step finished, something new left; upkeep cards after a finished request), `done` (goal reached; a loose end such as a push stays in `next_step`), `idea` (only while still an idea). `kanban-tool apply` applies it only when the session is newer than `status_changed_at`, never to Won't do. From Done or Archived to Doing or Todo the log line starts with "Reopened". With no status in the decision the old rule holds. `cards.py`, `sync-rules.md`, `card-schema.md` |
+| 2 | Notes (2) | The card list that sync reads now has `owner's notes`. The rules: notes are the newest facts, often about work outside Claude; never write a next step a note says is done. `cli.py card_index`, `sync-rules.md` |
+| 3 | Summary length (3, G1) | `summary` is 2 to 4 bullets, one per line, `- ` and at most 120 characters. `kanban-tool` keeps the first 4 and cuts long ones; a one-line paragraph (older cards) is kept. The page shows bullets as a list. `cards.py summary_text`, `board/index.html` |
+| 4 | Summary wrong (3) | Rule: read "ended with" before calling a thing open; built means done. `sync-rules.md` |
+| 5 | Not a work stream (4) | Skip shopping research and one-off tests or demos. Upkeep areas are one card. `sync-rules.md` |
+| 6 | Done column (6, G3) | Done cards are archived after 7 days, not 30. `cards.py ARCHIVE_DAYS` |
+| 7 | Way back (5, G2) | "Open in Claude" next to each session, and "Open session" on each "Done lately" line: `claude://resume?session=<id>`, the desktop app's own resume link (found in the app; it imports the CLI session and opens it). Only for ids that look like session ids. "Copy resume command" stays. `board/index.html` |
+| 8 | Reminder note (7) | The session-start hook and `kanban-tool status` count sessions by id from start and end lines, not `end` lines; the session that is starting is not counted. `session-log.sh`, `cli.py _pending` |
+
+Test cases on the live board, for the next sync: "Sauna dashboard" should go to Done (its session went on
+with the push), and "Home Assistant lights and plugs" to Todo once it has a new session.
+
+Not tested: the `claude://` link from the published page in a real browser (the artifact page may block
+links to other apps), and what the desktop app does with a session that is already open in it.

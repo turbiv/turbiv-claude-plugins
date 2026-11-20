@@ -42,7 +42,8 @@ With the argument `unattended` (the daily task), ask nothing: follow the "Unatte
      so the user knows the transcript format changed.
 
 4. Decide, by the sync rules: one entry per card that gets sessions, and a `skip` entry for every other
-   session. Write `summary`, `next_step` and one `log` line per session.
+   session. Write `status`, `summary` (bullets), `next_step` and one `log` line per session. Read the
+   owner's notes in the card list first.
 
 5. Give the decision to the tool:
 
@@ -90,4 +91,4 @@ With the argument `unattended` (the daily task), ask nothing: follow the "Unatte
 
 - This skill writes only: the data folder and the board's `cards` and `meta` documents.
 - It never changes a repo, never commits, never pushes.
-- It never sets a card to `done` and never changes a title or the user's notes.
+- It never changes a title or the user's notes, and never moves a card out of Won't do.

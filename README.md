@@ -27,6 +27,12 @@ The same band with the count opened, listing each command:
 
 ![context-band: the band above, with a list under it of the two running shell commands](plugins/context-band/docs/band-shells-list.webp)
 
+### kanban
+
+The board page, filtered to all repos:
+
+![kanban: the board page with Ideas, Todo, Doing and Done columns, repo filter chips, and cards that each show where they stand, the next step and their repos](plugins/kanban/docs/board.webp)
+
 ### openai-images
 
 An image the plugin made from `/openai-images:image a poster that says "Hello World" in bold letters on a

@@ -20,7 +20,7 @@ var out = input.map(function (c) {
   if (c.op === "entry") return entryOf(c.card);
   if (c.op === "snapshot") return snapshotOf(c.cards);
   if (c.op === "diff") return diffBoard(c.base, c.cards);
-  if (c.op === "patch-diff") { patchBase(c.base, c.id, c.patch); return { base: c.base, diff: diffBoard(c.base, c.cards) }; }
+  if (c.op === "patch-diff") { patchBase(c.base, c.id, c.patch, c.card); return { base: c.base, diff: diffBoard(c.base, c.cards) }; }
   throw new Error("unknown op " + c.op);
 });
 process.stdout.write(JSON.stringify(out));
@@ -143,6 +143,14 @@ class SeenTest(unittest.TestCase):
         self.assertIsNone(r[0]["base"]["a"])
         self.assertEqual(r[0]["diff"]["removed"], [])
         self.assertEqual(r[1]["base"]["b"]["t"], "B")
+
+    def test_own_move_of_a_new_card_is_not_renamed_or_updated(self):
+        moved = card("n1", "todo")
+        r = run([{"op": "patch-diff", "base": {}, "id": "n1", "patch": {"s": "todo"}, "card": moved, "cards": [moved]},
+                 {"op": "patch-diff", "base": {"n1": None}, "id": "n1", "patch": {"s": "todo"}, "card": moved, "cards": [moved]}])
+        for x in r:
+            self.assertEqual(x["diff"]["byId"], {})
+            self.assertEqual(x["base"]["n1"]["t"], "N1")
 
 
 if __name__ == "__main__":

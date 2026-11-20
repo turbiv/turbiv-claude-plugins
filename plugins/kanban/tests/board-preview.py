@@ -11,6 +11,8 @@ sample cards are used. Add ?view=1 to the URL for the read-only view,
 ?empty=1 for the empty board, and ?seen=old for a viewer who last looked
 three days ago (one new, one moved, one renamed, one updated, one removed
 card; with the sample cards only). The page counts as seen after 10 s.
+?cachemiss=1 makes the seen copy read as missing from the cache, and
+window.__failSeen = true makes writes of the copy fail like a dropped network.
 """
 import json
 import sys
@@ -80,7 +82,12 @@ MOCK = r"""
     return a;
   }
   var viewOnly = !!qs.get("view");
-  function refuse(col) { if (viewOnly && col.indexOf("data/users") === 0) throw { code: "invalid_argument" }; }
+  // window.__failSeen = true makes writes of the seen copy fail as if the network dropped.
+  function refuse(col) {
+    if (col.indexOf("data/users") !== 0) return;
+    if (window.__failSeen) throw { code: "unavailable" };
+    if (viewOnly) throw { code: "invalid_argument" };
+  }
   function fnv(s) {
     var h = 0x811c9dc5; s = typeof s === "string" ? s : "";
     for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
@@ -105,7 +112,11 @@ MOCK = r"""
     var s = stores[col] = stores[col] || {};
     return {
       id: id, path: col + "/" + id,
-      get: async function () { return snapDoc(id, s[id]); },
+      get: async function () {
+        // ?cachemiss=1: the seen copy reads as missing, from the cache (offline, new device).
+        if (qs.get("cachemiss") && col.indexOf("data/users") === 0) return { id: id, exists: false, data: function () { return undefined; }, metadata: { fromCache: true } };
+        return snapDoc(id, s[id]);
+      },
       set: async function (d) { refuse(col); s[id] = JSON.parse(JSON.stringify(d)); emit(); },
       update: async function (d) {
         if (window.__failWrites) throw { code: "unavailable" };

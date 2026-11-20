@@ -264,7 +264,7 @@ a { color: var(--accent); }
     openId: null, dirty: false, base: null, openJson: "", openChange: null,
     // What this viewer has seen: `seenBase` is the copy this visit compares with,
     // `copy` mirrors the stored copy. See the "seen" section below.
-    uid: null, seenKnown: false, seenLocal: false, seenBase: null, seenAt: "", copy: null, copyExists: false,
+    uid: null, seenKnown: false, seenLocal: false, seenBase: null, seenAt: "", copy: null, copyExists: false, copyDirty: false, remote: null,
     seenTimer: null, diff: null, changesOnly: false
   };
   var el = function (id) { return document.getElementById(id); };
@@ -319,9 +319,11 @@ a { color: var(--accent); }
     });
     return d;
   }
-  function patchBase(base, id, patch) {
+  // `card` (optional): the card as it is now. A patch for a card the base does
+  // not know starts from that card, so the other fields do not read as changed.
+  function patchBase(base, id, patch, card) {
     if (patch === null) { base[id] = null; return; }
-    var old = base[id] && typeof base[id] === "object" ? base[id] : {};
+    var old = base[id] && typeof base[id] === "object" ? base[id] : card ? entryOf(card) : {};
     base[id] = Object.assign({}, old, patch);
   }
   // ---- seen:end
@@ -439,6 +441,9 @@ a { color: var(--accent); }
       try {
         var snap = await S.db.doc(seenPath()).get();
         if (snap.exists) { doc = snap.data() || null; S.copyExists = true; }
+        // "Missing" from the cache (offline, a new device) is not an answer:
+        // saving a fresh copy over the real one would hide the unseen changes.
+        else if (snap.metadata && snap.metadata.fromCache) return;
       } catch (e) { return; /* unknown: no highlights, and never save over it */ }
     } else S.seenLocal = true;
     if (!doc) doc = readLocalSeen();
@@ -449,10 +454,37 @@ a { color: var(--accent); }
     }
     S.seenKnown = true;
     seenReady();
+    if (S.uid && !S.seenLocal) {
+      // The same viewer on another device: their own edits there are written
+      // into the copy. Take those in, so they do not light up here either.
+      S.db.doc(seenPath()).onSnapshot(function (snap) {
+        var d = snap.exists ? snap.data() : null;
+        S.remote = d && d.cards && typeof d.cards === "object" ? d.cards : null;
+        if (adoptRemote()) render();
+      }, function () { /* without it, only this device's edits are known */ });
+    }
+  }
+  // An entry in the stored copy that this page did not write, and that matches
+  // the card as it is now, was seen (or made) on another device: adopt it.
+  function adoptRemote() {
+    if (!S.remote || !S.copy || !S.seenBase) return false;
+    var changed = false;
+    Object.keys(S.remote).forEach(function (id) {
+      var e = S.remote[id], mine = canon({ a: S.copy[id] }), theirs = canon({ a: e });
+      if (theirs === mine) return;
+      var c = byId(id);
+      var fits = e && typeof e === "object" ? c && theirs === canon({ a: entryOf(c) }) : !c;
+      if (!fits) return;   // not on this device yet; checked again at the next cards snapshot
+      S.copy[id] = e === null ? null : Object.assign({}, e);
+      S.seenBase[id] = e === null ? null : Object.assign({}, e);
+      changed = true;
+    });
+    return changed;
   }
   // Runs when the copy or the cards arrive.
   function seenReady() {
     if (!S.seenKnown || !S.loaded || S.dead) return;
+    adoptRemote();
     if (!S.seenBase) {           // first visit: nothing to compare with yet
       S.seenBase = snapshotOf(S.cards); S.seenAt = new Date().toISOString();
       saveSeen();
@@ -471,8 +503,11 @@ a { color: var(--accent); }
     var prev = queues.__seen || Promise.resolve();
     var next = prev.then(function () { return fn(S.db.doc(seenPath())); }).then(function () { S.copyExists = true; }, function (e) {
       // Refused: this viewer may not write their own folder. Keep it here.
-      if (e && e.code === "invalid_argument") { S.seenLocal = true; local(); }
-      // Anything else: the next save tries again.
+      if (e && e.code === "invalid_argument") { S.seenLocal = true; local(); return; }
+      // Anything else (network, rate limit): the stored copy is behind S.copy.
+      // The next save writes it whole, after another 10 s on screen.
+      S.copyDirty = true;
+      armSeenTimer();
     });
     queues.__seen = next;
     return next;
@@ -481,19 +516,19 @@ a { color: var(--accent); }
   function saveSeen() {
     if (!S.seenKnown || !S.loaded) return;
     var now = snapshotOf(S.cards);
-    if (S.copy && canon(now) === canon(S.copy)) return;
-    S.copy = now;
+    if (S.copy && !S.copyDirty && canon(now) === canon(S.copy)) return;
+    S.copy = now; S.copyDirty = false;
     var at = new Date().toISOString();
     storeCopy(function (ref) { return ref.set({ at: at, cards: now }); });
   }
   // The viewer's own change to a card: it does not count as a change for them.
   function ownEdit(id, patch) {
-    if (S.seenBase) patchBase(S.seenBase, id, patch);
+    if (S.seenBase) patchBase(S.seenBase, id, patch, byId(id));
   }
   function saveOwnEdit(id, patch) {
     if (!S.seenKnown || !S.copy) return;
     var before = canon({ a: S.copy[id] });
-    patchBase(S.copy, id, patch);
+    patchBase(S.copy, id, patch, byId(id));
     if (canon({ a: S.copy[id] }) === before) return;
     var one = {}; one[id] = S.copy[id];
     storeCopy(function (ref) {

@@ -102,7 +102,8 @@ class _Images:
         inputs = [core.check_input_image(cfg.project_dir, p) for p in images or []]
         mask_path = core.check_input_image(cfg.project_dir, mask) if mask else None
 
-        estimate = core.estimate_cost(model, quality, size, n, len(inputs) + (1 if mask_path else 0))
+        estimate = core.estimate_cost(model, quality, size, n, len(inputs) + (1 if mask_path else 0),
+                                      prompt_chars=len(prompt))
         if estimate.total_usd > cfg.max_cost_per_call and not allow_expensive:
             raise ImagesError(
                 "over_cost_cap",
@@ -294,9 +295,9 @@ def create_server(config: core.Config, http: httpx.Client, sleep: Callable[[floa
         images: 1-16 PNG/JPEG/WebP files inside the project (paths may be relative to it); images[0] is the one
         edited, the rest are references. mask: optional PNG with transparency marking the area to change.
         Files outside the project are refused: copy them into generated-images/inputs/ first (ask the user).
-        Each input image and the mask add a $0.05 allowance to the estimate, so edits with 2+ inputs usually
-        exceed the default $0.10 cap and need allow_expensive: true after the user agrees. Other parameters
-        are as for generate_image."""
+        Each input image and the mask add a $0.05 allowance to the estimate; a call estimated above the user's
+        max_cost_per_call (see image_status; default $0.10) is refused and needs allow_expensive: true after
+        the user agrees. Other parameters are as for generate_image."""
         return guarded(impl.run, "edits", prompt, model=model, size=size, quality=quality,
                        background=background, output_format=output_format, n=n, filename=filename,
                        output_dir=output_dir, allow_expensive=allow_expensive, images=images, mask=mask)

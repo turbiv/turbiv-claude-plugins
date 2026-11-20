@@ -7,6 +7,12 @@ what is wrong. After each image, Claude tells you what it cost and how much you 
 The default is `gpt-image-2.5-sunburst` at medium quality, 1024x1024: about **$0.013 per image**. With $5
 of OpenAI credit, that is more than 300 images.
 
+<img src="docs/example-hello-world.jpg" alt="A portrait poster: bold white &quot;Hello World&quot; over a sunset at sea" width="320">
+
+Made with `/openai-images:image a poster that says "Hello World" in bold letters on a sunset background`.
+Claude picked a 1024x1536 poster size, wrote the prompt, checked the spelling and layout, and reported the
+cost: **$0.011** with `gpt-image-2.5-sunburst` at medium quality, first try.
+
 ## What you get
 
 - **`/openai-images:image <idea>`**, and Claude also uses it on its own when you ask it to make or edit

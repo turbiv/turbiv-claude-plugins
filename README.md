@@ -15,6 +15,10 @@ plugins from it.
 
 Each plugin's README says what it needs and how to use it. Read it before installing.
 
+<img src="plugins/openai-images/docs/example-hello-world.jpg" alt="A portrait poster: bold white &quot;Hello World&quot; over a sunset at sea" width="200">
+
+*Made with openai-images:* `/openai-images:image a poster that says "Hello World" in bold letters on a sunset background`, *for $0.011.*
+
 ## Install
 
 Run these in Claude Code. First add the marketplace (once per machine):

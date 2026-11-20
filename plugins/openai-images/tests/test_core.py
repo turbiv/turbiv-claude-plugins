@@ -104,6 +104,14 @@ class EstimateTest(unittest.TestCase):
         self.assertAlmostEqual(e.total_usd, usd(439) + 0.15)
         self.assertTrue(any("allowance" in n for n in e.notes))
 
+    def test_estimate_includes_prompt_text(self):
+        # First real call (2026-11-21): a 650-character prompt used 160 text tokens ($0.0008).
+        bare = core.estimate_cost("gpt-image-2.5-sunburst", "medium", "1024x1536", 1, 0)
+        with_prompt = core.estimate_cost("gpt-image-2.5-sunburst", "medium", "1024x1536", 1, 0, prompt_chars=650)
+        self.assertAlmostEqual(with_prompt.prompt_usd, 217 * 5e-6)
+        self.assertAlmostEqual(with_prompt.total_usd, bare.total_usd + 217 * 5e-6)
+        self.assertGreaterEqual(with_prompt.prompt_usd, 160 * 5e-6)
+
     def test_cost_from_usage(self):
         usage = {"input_tokens": 50, "input_tokens_details": {"text_tokens": 10, "image_tokens": 40},
                  "output_tokens": 50, "output_tokens_details": {"image_tokens": 50, "text_tokens": 0},

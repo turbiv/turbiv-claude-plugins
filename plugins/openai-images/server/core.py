@@ -111,10 +111,12 @@ class Estimate:
     output_usd: float
     input_allowance_usd: float
     total_usd: float
+    prompt_usd: float = 0.0
     notes: list[str] = field(default_factory=list)
 
 
-def estimate_cost(model: str, quality: str, size: str, n: int, input_images: int) -> Estimate:
+def estimate_cost(model: str, quality: str, size: str, n: int, input_images: int,
+                  prompt_chars: int = 0) -> Estimate:
     notes: list[str] = []
     q = quality.strip().lower()
     if q == "auto":
@@ -133,7 +135,10 @@ def estimate_cost(model: str, quality: str, size: str, n: int, input_images: int
     if input_images:
         notes.append(f"includes an allowance of ${INPUT_ALLOWANCE_USD:.2f} per input image and mask "
                      f"({input_images}); the real input cost is in the usage after the call")
-    return Estimate(output_usd=output, input_allowance_usd=allowance, total_usd=output + allowance, notes=notes)
+    # Prompt text: about 4 characters per token in practice; 3 keeps the estimate on the high side.
+    prompt = math.ceil(max(prompt_chars, 0) / 3) * PRICES["text_in"]
+    return Estimate(output_usd=output, input_allowance_usd=allowance, total_usd=output + allowance + prompt,
+                    prompt_usd=prompt, notes=notes)
 
 
 def cost_from_usage(model: str, usage: dict) -> float:

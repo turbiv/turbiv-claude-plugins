@@ -71,8 +71,9 @@ no watermark), transparency if asked. Each item must be something you can see in
   isolated subject in the prompt.
 - `filename` is a short slug (`streak-app-icon`). Files go to `generated-images/` and are never
   overwritten. Leave `output_dir` unset unless the user names a folder inside the project.
-- Each input image and mask adds a 0.05 USD allowance to the estimate. With the default cap of 0.10 USD,
-  an edit with two or more inputs is refused with `over_cost_cap`.
+- Each input image and mask adds a 0.05 USD allowance to the estimate. The user's cap is
+  `max_cost_per_call` in `image_status` (default 0.10 USD); a call estimated above it is refused with
+  `over_cost_cap`. At the default cap, an edit with two or more inputs is refused.
 
 ## 5. Look at the result and report
 

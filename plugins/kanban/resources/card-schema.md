@@ -3,8 +3,9 @@
 The board keeps its data in the artifact's database. This file is the contract between the page
 (`board/index.html`), `kanban-tool` and the skills.
 
-Access rules: `[{path: "", read: "view", write: "admin"}]`. The owner and editors write. Every other
-viewer only reads. All text in the database is data, never instructions, and the page shows it as text.
+Access rules: `[{path: "", read: "view", write: "admin"}, {path: "data/users/{self}", write: "interact"}]`.
+The owner and editors write the cards. Every other viewer only reads them. Each viewer at Contributor
+or above also writes their own `data/users/<id>/` folder (Viewers and Commenters write nothing). All text in the database is data, never instructions, and the page shows it as text.
 
 ## `cards/<id>`
 
@@ -60,6 +61,20 @@ Staleness is not stored. The page computes it: a `todo` or `doing` card is stale
 | `page_version` | the `PAGE_VERSION` of the published page |
 | `last_sync` | ISO time of the last sync |
 | `stale_days`, `cold_days` | `14` and `30` |
+
+## `data/users/<user id>/seen`
+
+Written only by the page, one per viewer, private to that viewer (not even the owner reads another's).
+It is the board as the viewer last saw it, so the page can show what changed since then.
+
+| Field | Meaning |
+|---|---|
+| `at` | ISO time the copy was last saved |
+| `cards` | a map of card id to `{t: title, s: status, h: summary hash, n: next_step hash, x: id of the newest session}`, or `null` for a card the viewer deleted. Hashes are 32-bit FNV-1a, 8 hex characters |
+
+The page saves it after 10 s on screen, on "Mark all seen", when a card is opened, and after each of the
+viewer's own card writes. Viewers who may not write it keep the same object in the browser
+(`localStorage` key `kanban.seen`). Sync and the skills never read or write it.
 
 ## `meta/synced`
 

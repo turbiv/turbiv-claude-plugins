@@ -47,7 +47,7 @@ show the user the message and ask before you do anything else.
   - `icon`: `board`
   - `description`: "Your work streams as cards: where each one stands, the next step, and which ones
     were left alone."
-  - `capabilities`: `{"db": {"rules": [{"path": "", "read": "view", "write": "admin"}]}, "user": {}}`
+  - `capabilities`: `{"db": {"rules": [{"path": "", "read": "view", "write": "admin"}, {"path": "data/users/{self}", "write": "interact"}]}, "user": {}}`
 
   Then write `meta/board` with `ArtifactData` `set`: `{"title": "Kanban", "schema": 1, "page_version":
   <the page's number>, "stale_days": 14, "cold_days": 30}`.

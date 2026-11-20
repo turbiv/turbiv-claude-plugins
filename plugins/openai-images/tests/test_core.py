@@ -116,3 +116,142 @@ class EstimateTest(unittest.TestCase):
         self.assertAlmostEqual(core.cost_from_usage("x", {"input_tokens": 100, "output_tokens": 200}),
                                100 * 8e-6 + 200 * 30e-6)
         self.assertEqual(core.cost_from_usage("x", {}), 0)
+
+
+def err(status, code=None, message="m", type_=None, headers=None, **extra):
+    body = {"error": {"message": message, "type": type_, "param": None, "code": code, **extra}}
+    return core.classify_error(status, body, headers or {})
+
+
+class ErrorTest(unittest.TestCase):
+    def test_error_str(self):
+        e = core.ImagesError("rate_limited", "Slow down.", "Wait.", retryable=True)
+        self.assertEqual(str(e), "rate_limited: Slow down. Next: Wait.")
+        self.assertTrue(e.retryable)
+        self.assertIsNone(e.retry_after)
+
+    def test_401_bad_key_does_not_echo_key(self):
+        e = err(401, "invalid_api_key", "Incorrect API key provided: sk-proj-abc***xyz.")
+        self.assertEqual(e.code, "bad_api_key")
+        self.assertFalse(e.retryable)
+        self.assertNotIn("sk-", str(e))
+        self.assertIn("/plugin configure openai-images", str(e))
+
+    def test_403_verification(self):
+        e = err(403, None, "Your organization must be verified to use the model `gpt-image-2`. Please go to ...",
+                "invalid_request_error")
+        self.assertEqual(e.code, "org_verification_required")
+        self.assertIn("platform.openai.com/settings/organization/general", str(e))
+        self.assertIn("15 minutes", str(e))
+        self.assertFalse(e.retryable)
+
+    def test_other_403(self):
+        e = err(403, "unsupported_country_region_territory", "Country, region, or territory not supported")
+        self.assertEqual(e.code, "invalid_request")
+        self.assertIn("not supported", str(e))
+        self.assertFalse(e.retryable)
+
+    def test_400_moderation(self):
+        e = err(400, "moderation_blocked", "Your request was rejected by the safety system.",
+                "image_generation_user_error",
+                moderation_details={"moderation_stage": "output", "categories": ["violence", "harassment"]})
+        self.assertEqual(e.code, "moderation_blocked")
+        self.assertFalse(e.retryable)
+        self.assertIn("output", e.message)
+        self.assertIn("violence", e.message)
+        self.assertIn("harassment", e.message)
+        self.assertIn("rephrase", e.next_step.lower())
+
+    def test_other_400(self):
+        e = err(400, "unknown_parameter", "Unknown parameter: 'foo'.", "invalid_request_error")
+        self.assertEqual(e.code, "invalid_request")
+        self.assertIn("Unknown parameter: 'foo'.", e.message)
+        self.assertFalse(e.retryable)
+
+    def test_404_model_not_found(self):
+        for status, code in ((404, "model_not_found"), (404, None), (400, "model_not_found")):
+            e = err(status, code, "The model `gpt-image-9` does not exist.")
+            self.assertEqual(e.code, "model_not_found", (status, code))
+            self.assertFalse(e.retryable)
+
+    def test_429_quota_codes_not_retryable(self):
+        for code, type_ in (("credit_balance_exhausted", "insufficient_quota"), ("insufficient_quota", None),
+                            (None, "insufficient_quota"), ("organization_spend_limit_exceeded", None),
+                            ("project_spend_limit_exceeded", None), ("organization_usage_limit_exceeded", None),
+                            ("billing_hard_limit_reached", None)):
+            e = err(429, code, "You exceeded your current quota.", type_, headers={"Retry-After": "1"})
+            self.assertEqual(e.code, "out_of_credit", (code, type_))
+            self.assertFalse(e.retryable, (code, type_))
+            self.assertIn("platform.openai.com/settings/organization/billing", str(e))
+
+    def test_429_rate_limit_retryable(self):
+        e = err(429, None, "Rate limit reached for requests", "requests", headers={"retry-after": "7"})
+        self.assertEqual(e.code, "rate_limited")
+        self.assertTrue(e.retryable)
+        self.assertEqual(e.retry_after, 7.0)
+        e = err(429, "rate_limit_exceeded", "Rate limit", headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"})
+        self.assertTrue(e.retryable)
+        self.assertIsNone(e.retry_after)
+
+    def test_500_503_retryable(self):
+        for status in (500, 503):
+            e = core.classify_error(status, None, {"Retry-After": "3"})
+            self.assertEqual(e.code, "openai_unavailable")
+            self.assertTrue(e.retryable)
+            self.assertEqual(e.retry_after, 3.0)
+
+    def test_other_5xx_not_retried(self):
+        # 502/504 may come after OpenAI started (and billed) the work, so they are not retried.
+        for status in (502, 504):
+            e = core.classify_error(status, None, {})
+            self.assertEqual(e.code, "openai_unavailable")
+            self.assertFalse(e.retryable)
+
+    def test_messages_scrub_keys(self):
+        e = err(400, "x", "bad key sk-proj-AbC123_def in body")
+        self.assertNotIn("AbC123", str(e))
+
+
+class ValidateTest(unittest.TestCase):
+    def ok(self, **kw):
+        args = dict(size="1024x1024", background="auto", output_format="png", n=1)
+        args.update(kw)
+        core.validate_request(**args)
+
+    def bad(self, **kw):
+        with self.assertRaises(core.ImagesError) as cm:
+            self.ok(**kw)
+        self.assertEqual(cm.exception.code, "invalid_request")
+        self.assertFalse(cm.exception.retryable)
+        return cm.exception
+
+    def test_parse_size(self):
+        self.assertEqual(core.parse_size("1536x864"), (1536, 864))
+        self.assertEqual(core.parse_size(" 1024X1536 "), (1024, 1536))
+        self.assertIsNone(core.parse_size("auto"))
+        with self.assertRaises(core.ImagesError):
+            core.parse_size("big")
+
+    def test_sizes(self):
+        for size in ("1536x864", "1024x1024", "1536x1024", "1024x1536", "3840x1280", "3840x2160", "auto"):
+            self.ok(size=size)
+        self.assertIn("16", self.bad(size="1000x1000").message)
+        self.assertIn("3840", self.bad(size="4000x1504").message)
+        self.assertIn("655,360", self.bad(size="512x512").message)
+        self.assertIn("1:3", self.bad(size="3840x1264").message)
+        self.bad(size="square")
+        self.bad(size="0x0")
+
+    def test_transparent_needs_png_or_webp(self):
+        self.ok(background="transparent", output_format="png")
+        self.ok(background="transparent", output_format="webp")
+        self.assertIn("png", self.bad(background="transparent", output_format="jpeg").message)
+
+    def test_n(self):
+        for n in (1, 4):
+            self.ok(n=n)
+        for n in (0, 5, -1):
+            self.bad(n=n)
+
+    def test_unknown_values_pass_to_api(self):
+        self.ok(background="something-new", output_format="gif")

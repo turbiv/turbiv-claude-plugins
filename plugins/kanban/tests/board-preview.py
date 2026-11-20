@@ -7,8 +7,10 @@ The real page needs claude.ai for its data. This wraps board/index.html with
 a small mock of window.claude so the layout can be checked in any browser.
 CARDS.json is a list of card objects (each with an "id"), or a folder of
 card files as `ArtifactData list ... out_dir` saves them. Without it, a few
-sample cards are used. Add ?view=1 to the URL for the read-only view and
-?empty=1 for the empty board.
+sample cards are used. Add ?view=1 to the URL for the read-only view,
+?empty=1 for the empty board, and ?seen=old for a viewer who last looked
+three days ago (one new, one moved, one renamed, one updated, one removed
+card; with the sample cards only). The page counts as seen after 10 s.
 """
 import json
 import sys
@@ -71,15 +73,43 @@ MOCK = r"""
   var stores = { cards: cards, meta: meta }, subs = [];
   function snapDoc(id, data) { return { id: id, exists: !!data, data: function () { return data; }, metadata: { fromCache: false } }; }
   function emit() { subs.forEach(function (f) { f(); }); }
-  function merge(a, b) { Object.keys(b).forEach(function (k) { a[k] = b[k]; }); return a; }
+  function plain(v) { return v && typeof v === "object" && !Array.isArray(v); }
+  // Like the real db: nested objects merge, anything else (arrays too) replaces.
+  function merge(a, b) {
+    Object.keys(b).forEach(function (k) { a[k] = plain(a[k]) && plain(b[k]) ? merge(Object.assign({}, a[k]), b[k]) : b[k]; });
+    return a;
+  }
+  var viewOnly = !!qs.get("view");
+  function refuse(col) { if (viewOnly && col.indexOf("data/users") === 0) throw { code: "invalid_argument" }; }
+  function fnv(s) {
+    var h = 0x811c9dc5; s = typeof s === "string" ? s : "";
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return ("0000000" + (h >>> 0).toString(16)).slice(-8);
+  }
+  if (qs.get("seen") === "old") {
+    var copy = {};
+    Object.keys(cards).forEach(function (id) {
+      var c = cards[id];
+      copy[id] = { t: c.title, s: c.status, h: fnv(c.summary), n: fnv(c.next_step), x: (c.sessions && c.sessions[0] || {}).id || "" };
+    });
+    delete copy["sample-1"];                                   // new
+    if (copy["sample-2"]) copy["sample-2"].s = "todo";         // moved from Todo
+    if (copy["sample-3"]) copy["sample-3"].t = "Sample: the old title"; // renamed
+    if (copy["sample-6"]) copy["sample-6"].h = "00000000";     // updated
+    copy["gone-1"] = { t: "Sample: a card that was deleted", s: "doing", h: "1", n: "2", x: "" }; // removed
+    var seenDoc = { at: new Date(Date.now() - 3 * 86400e3).toISOString(), cards: copy };
+    if (viewOnly) { try { localStorage.setItem("kanban.seen", JSON.stringify(seenDoc)); } catch (e) {} }
+    else stores["data/users/preview-user"] = { seen: seenDoc };
+  }
   function docRef(col, id) {
     var s = stores[col] = stores[col] || {};
     return {
       id: id, path: col + "/" + id,
       get: async function () { return snapDoc(id, s[id]); },
-      set: async function (d) { s[id] = JSON.parse(JSON.stringify(d)); emit(); },
+      set: async function (d) { refuse(col); s[id] = JSON.parse(JSON.stringify(d)); emit(); },
       update: async function (d) {
         if (window.__failWrites) throw { code: "unavailable" };
+        refuse(col);
         if (!s[id]) throw { code: "invalid_argument" };
         s[id] = merge(Object.assign({}, s[id]), d); emit();
       },
@@ -98,8 +128,11 @@ MOCK = r"""
     };
     return q;
   }
-  var db = { doc: function (p) { var a = p.split("/"); return docRef(a[0], a[1]); }, collection: colRef };
-  var user = { canEdit: async function () { return !qs.get("view"); }, isOwner: async function () { return !qs.get("view"); } };
+  var db = { doc: function (p) { var a = p.split("/"); return docRef(a.slice(0, -1).join("/"), a[a.length - 1]); }, collection: colRef };
+  var user = {
+    canEdit: async function () { return !viewOnly; }, isOwner: async function () { return !viewOnly; },
+    id: async function () { return viewOnly ? null : "preview-user"; }
+  };
   window.claude = { use: async function (n) { return n === "db" ? db : n === "user" ? user : null; } };
   window.__stores = stores;
 })();

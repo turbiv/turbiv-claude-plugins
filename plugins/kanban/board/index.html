@@ -123,6 +123,15 @@ h1 { font-family: var(--font-head); font-size: 24px; font-weight: 600; margin: 0
 .card.stale { border-color: var(--stale); }
 .card.cold { border-color: var(--cold); }
 .card.dragging { opacity: .4; }
+.card.changed { outline: 2px solid var(--accent); outline-offset: -1px; }
+.badge.chg { background: var(--accent); color: var(--accent-ink); }
+.card .from { font-size: 12px; color: var(--accent); font-weight: 500; margin-top: -3px; }
+.changes { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.changes .btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.changes .btn { color: var(--ink); }
+.removed { background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 8px 12px; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.removed b { color: var(--ink); font-weight: 600; }
+.dlg .chg-note { color: var(--accent); font-weight: 600; }
 .card .t { font-weight: 600; font-size: 14.5px; line-height: 1.3; overflow-wrap: anywhere; display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
 .card .t span:first-child { min-width: 0; }
 .badge { font-size: 10.5px; font-weight: 600; letter-spacing: .06em; background: var(--accent-soft); color: var(--accent); border-radius: 5px; padding: 2px 6px; flex: none; }
@@ -214,6 +223,7 @@ a { color: var(--accent); }
 
   <div class="tabs" id="tabs" role="tablist" aria-label="Columns" hidden></div>
   <div class="state" id="state"><strong>Loading the board</strong>Reading the cards.</div>
+  <div class="removed" id="removed" hidden></div>
   <div class="cols" id="cols" hidden></div>
 </div>
 
@@ -234,7 +244,8 @@ a { color: var(--accent); }
 <script>
 (function () {
   "use strict";
-  var PAGE_VERSION = 3;
+  var PAGE_VERSION = 4;
+  var SEEN_AFTER_MS = 10000;  // the page counts as seen after 10 s on screen
   var COLUMNS = [
     { key: "idea", label: "Ideas", empty: "No ideas parked here." },
     { key: "todo", label: "Todo", empty: "Nothing is queued." },
@@ -250,7 +261,11 @@ a { color: var(--accent); }
   var S = {
     db: null, canEdit: false, cards: [], meta: {}, loaded: false, slow: false, dead: null,
     repo: "", query: "", staleOnly: false, showArchived: false, tab: "doing",
-    openId: null, dirty: false, base: null, openJson: ""
+    openId: null, dirty: false, base: null, openJson: "", openChange: null,
+    // What this viewer has seen: `seenBase` is the copy this visit compares with,
+    // `copy` mirrors the stored copy. See the "seen" section below.
+    uid: null, seenKnown: false, seenLocal: false, seenBase: null, seenAt: "", copy: null, copyExists: false,
+    seenTimer: null, diff: null, changesOnly: false
   };
   var el = function (id) { return document.getElementById(id); };
   var queues = {};
@@ -393,15 +408,120 @@ a { color: var(--accent); }
     if (c.status !== status) { f.status = status; f.status_changed_at = new Date().toISOString(); }
     if (order !== undefined && order !== c.order) f.order = order;
     if (c.is_new) f.is_new = false;
-    if (Object.keys(f).length) updateCard(id, f);
+    if (!Object.keys(f).length) return;
+    var patch = f.status ? { s: status } : null;
+    if (patch) ownEdit(id, patch);
+    updateCard(id, f).then(function (ok) { if (ok && patch) saveOwnEdit(id, patch); });
   }
   function byId(id) { for (var i = 0; i < S.cards.length; i++) if (S.cards[i].id === id) return S.cards[i]; return null; }
+
+  // ---------- seen: what this viewer has already seen ----------
+  // The copy lives at data/users/<id>/seen, so one "last seen" holds on every
+  // device of the viewer. Viewers who may not write there (Viewer, Commenter,
+  // outside visitors) keep it in this browser instead. The copy is saved after
+  // SEEN_AFTER_MS on screen, on "Mark all seen", when a card is opened, and on
+  // each of the viewer's own edits, so their own changes never show as changes.
+  // The highlights of this visit stay until the next visit.
+  function seenPath() { return "data/users/" + S.uid + "/seen"; }
+  function readLocalSeen() {
+    try { var v = JSON.parse(pref("seen") || "null"); return v && typeof v === "object" ? v : null; } catch (e) { return null; }
+  }
+  function canon(cards) {
+    return JSON.stringify(Object.keys(cards || {}).sort().map(function (k) {
+      var e = cards[k];
+      return [k, e && typeof e === "object" ? [e.t, e.s, e.h, e.n, e.x] : null];
+    }));
+  }
+  async function loadSeen(user) {
+    var doc = null;
+    try { S.uid = user ? await user.id() : null; } catch (e) { S.uid = null; }
+    if (S.uid) {
+      try {
+        var snap = await S.db.doc(seenPath()).get();
+        if (snap.exists) { doc = snap.data() || null; S.copyExists = true; }
+      } catch (e) { return; /* unknown: no highlights, and never save over it */ }
+    } else S.seenLocal = true;
+    if (!doc) doc = readLocalSeen();
+    if (doc && doc.cards && typeof doc.cards === "object") {
+      S.seenBase = JSON.parse(JSON.stringify(doc.cards));
+      S.copy = JSON.parse(JSON.stringify(doc.cards));
+      S.seenAt = str(doc.at);
+    }
+    S.seenKnown = true;
+    seenReady();
+  }
+  // Runs when the copy or the cards arrive.
+  function seenReady() {
+    if (!S.seenKnown || !S.loaded || S.dead) return;
+    if (!S.seenBase) {           // first visit: nothing to compare with yet
+      S.seenBase = snapshotOf(S.cards); S.seenAt = new Date().toISOString();
+      saveSeen();
+    }
+    render();
+    armSeenTimer();
+  }
+  function armSeenTimer() {
+    clearTimeout(S.seenTimer);
+    if (!S.seenKnown || !S.loaded || S.dead || document.visibilityState !== "visible") return;
+    S.seenTimer = setTimeout(saveSeen, SEEN_AFTER_MS);
+  }
+  function storeCopy(fn) {
+    function local() { pref("seen", JSON.stringify({ at: new Date().toISOString(), cards: S.copy })); }
+    if (S.seenLocal) { local(); return Promise.resolve(); }
+    var prev = queues.__seen || Promise.resolve();
+    var next = prev.then(function () { return fn(S.db.doc(seenPath())); }).then(function () { S.copyExists = true; }, function (e) {
+      // Refused: this viewer may not write their own folder. Keep it here.
+      if (e && e.code === "invalid_argument") { S.seenLocal = true; local(); }
+      // Anything else: the next save tries again.
+    });
+    queues.__seen = next;
+    return next;
+  }
+  // Save the board as it is now as the viewer's copy, when it differs.
+  function saveSeen() {
+    if (!S.seenKnown || !S.loaded) return;
+    var now = snapshotOf(S.cards);
+    if (S.copy && canon(now) === canon(S.copy)) return;
+    S.copy = now;
+    var at = new Date().toISOString();
+    storeCopy(function (ref) { return ref.set({ at: at, cards: now }); });
+  }
+  // The viewer's own change to a card: it does not count as a change for them.
+  function ownEdit(id, patch) {
+    if (S.seenBase) patchBase(S.seenBase, id, patch);
+  }
+  function saveOwnEdit(id, patch) {
+    if (!S.seenKnown || !S.copy) return;
+    var before = canon({ a: S.copy[id] });
+    patchBase(S.copy, id, patch);
+    if (canon({ a: S.copy[id] }) === before) return;
+    var one = {}; one[id] = S.copy[id];
+    storeCopy(function (ref) {
+      return S.copyExists ? ref.update({ cards: one }) : ref.set({ at: new Date().toISOString(), cards: S.copy });
+    });
+  }
+  function seenAll() {
+    S.seenBase = snapshotOf(S.cards); S.seenAt = new Date().toISOString(); S.changesOnly = false;
+    saveSeen(); render();
+  }
+  function colLabel(key) { return (COLUMNS.filter(function (x) { return x.key === key; })[0] || {}).label || key; }
+  var KIND_LABEL = { "new": "NEW", moved: "MOVED", renamed: "RENAMED", updated: "UPDATED" };
+  function changeNote(ch) {
+    if (!ch) return "";
+    var k = ch.kinds[0];
+    if (k === "new") return "New since you last looked";
+    if (k === "moved") return "Moved from " + colLabel(ch.from) + " since you last looked";
+    if (k === "renamed") return "Renamed since you last looked";
+    return "Updated since you last looked";
+  }
 
   // ---------- filtering ----------
   function visible() {
     var q = S.query.trim().toLowerCase();
+    var changed = S.changesOnly && S.diff ? S.diff.byId : null;
     return S.cards.filter(function (c) {
-      if (isClosed(c.status) && !S.showArchived) return false;
+      if (changed && !changed[c.id]) return false;
+      if (isClosed(c.status) && !S.showArchived && !changed) return false;
       if (S.repo === "\u0000none" ? arr(c.repos).length : (S.repo && arr(c.repos).indexOf(S.repo) < 0)) return false;
       if (S.staleOnly && !staleness(c)) return false;
       if (q) {
@@ -415,6 +535,9 @@ a { color: var(--accent); }
   // ---------- render ----------
   function render() {
     el("board-title").textContent = str(S.meta.title) || "Kanban";
+    S.diff = diffBoard(S.seenKnown && S.loaded ? S.seenBase : null, S.cards);
+    if (!S.diff.total) S.changesOnly = false;
+    renderRemoved();
     renderStatus();
     var st = el("state"), cols = el("cols");
     if (S.dead) {
@@ -440,7 +563,9 @@ a { color: var(--accent); }
     st.hidden = true; cols.hidden = false; el("tabs").hidden = false;
     renderChips();
     var list = visible();
-    var shown = COLUMNS.filter(function (c) { return !c.closed || S.showArchived; });
+    var shown = COLUMNS.filter(function (c) {
+      return !c.closed || S.showArchived || (S.changesOnly && list.some(function (x) { return x.status === c.key; }));
+    });
     if (!shown.some(function (c) { return c.key === S.tab; })) S.tab = "doing";
     cols.style.setProperty("--ncols", shown.length);
     var tabs = el("tabs"); tabs.replaceChildren();
@@ -466,6 +591,27 @@ a { color: var(--accent); }
     if (S.meta.last_sync) box.appendChild(h("span", { text: "synced " + ago(S.meta.last_sync), title: dateLabel(S.meta.last_sync) }));
     else box.appendChild(h("span", { text: "not synced yet" }));
     if (S.slow) box.appendChild(h("span", { class: "note", text: "may be out of date" }));
+    var d = S.diff;
+    if (d && d.total) {
+      var parts = [["new", "new"], ["moved", "moved"], ["renamed", "renamed"], ["updated", "updated"], ["removed", "removed"]]
+        .filter(function (p) { return d.counts[p[0]]; }).map(function (p) { return d.counts[p[0]] + " " + p[1]; });
+      var since = S.seenAt ? " (" + ago(S.seenAt) + ")" : "";
+      box.appendChild(h("span", { class: "changes" }, [
+        h("button", {
+          class: "btn small", type: "button", id: "changes-toggle", "aria-pressed": String(S.changesOnly),
+          title: S.changesOnly ? "Show the whole board" : "Show only what changed",
+          onclick: function () { S.changesOnly = !S.changesOnly; render(); }
+        }, ["Since you last looked" + since + ": ", h("b", { text: parts.join(" · ") })]),
+        h("button", { class: "btn small", type: "button", id: "seen-all", text: "Mark all seen", onclick: seenAll })
+      ]));
+    }
+  }
+  function renderRemoved() {
+    var box = el("removed"), d = S.diff;
+    if (!S.changesOnly || !d || !d.removed.length || S.dead || !S.loaded) { box.hidden = true; return; }
+    box.hidden = false;
+    box.replaceChildren(h("b", { text: "Removed or merged since you last looked: " }),
+      document.createTextNode(d.removed.map(function (r) { return r.title || "Untitled"; }).join(", ")));
   }
 
   function renderChips() {
@@ -521,14 +667,17 @@ a { color: var(--accent); }
   }
 
   function renderCard(c) {
-    var st = staleness(c);
+    var st = staleness(c), ch = S.diff && S.diff.byId[c.id];
     // A div with a button role, not a <button>: Firefox does not drag buttons.
     var node = h("div", {
-      class: "card" + (st ? " " + st : ""), role: "button", tabindex: "0", "data-id": c.id, draggable: S.canEdit ? "true" : null,
+      class: "card" + (st ? " " + st : "") + (ch ? " changed" : ""), role: "button", tabindex: "0", "data-id": c.id, draggable: S.canEdit ? "true" : null,
       onclick: function () { openCard(c.id); },
       onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCard(c.id); } }
     }, [
-      h("span", { class: "t" }, [h("span", { text: str(c.title) || "Untitled" }), c.is_new ? h("span", { class: "badge", text: "NEW" }) : null]),
+      h("span", { class: "t" }, [h("span", { text: str(c.title) || "Untitled" }),
+        ch ? h("span", { class: "badge chg", text: KIND_LABEL[ch.kinds[0]], title: changeNote(ch) })
+           : c.is_new ? h("span", { class: "badge", text: "NEW" }) : null]),
+      ch && ch.kinds[0] === "moved" ? h("span", { class: "from", text: "from " + colLabel(ch.from) }) : null,
       str(c.summary) ? h("span", { class: "s", text: c.summary }) : null,
       str(c.next_step) && c.status !== "done" && !isClosed(c.status)
         ? h("span", { class: "nx" }, [h("b", { text: "Next: " }), c.next_step]) : null,
@@ -551,11 +700,13 @@ a { color: var(--accent); }
   function openCard(id) {
     var c = byId(id); if (!c) return;
     S.openId = id; S.dirty = false; S.openJson = "";
+    S.openChange = S.diff && S.diff.byId[id] || null;
     if (c.is_new && S.canEdit) updateCard(id, { is_new: false });
+    if (S.openChange) { var seen = entryOf(c); ownEdit(id, seen); saveOwnEdit(id, seen); render(); }
     renderDialog();
     var d = el("card-dlg"); if (!d.open) d.showModal();
   }
-  function closeCard() { S.openId = null; S.dirty = false; S.base = null; var d = el("card-dlg"); if (d.open) d.close(); }
+  function closeCard() { S.openId = null; S.openChange = null; S.dirty = false; S.base = null; var d = el("card-dlg"); if (d.open) d.close(); }
 
   function sec(label, body, forId) {
     return h("div", { class: "sec" }, [forId ? h("label", { for: forId, text: label }) : h("div", { class: "lab", text: label }), body]);
@@ -577,7 +728,8 @@ a { color: var(--accent); }
         h("div", { class: "sub" }, [
           h("span", { text: colLabel }),
           c.last_touched ? h("span", { text: "last touched " + ageLabel(c.last_touched) + " (" + dateLabel(c.last_touched) + ")" }) : null,
-          st ? h("span", { class: "age " + st, text: st === "cold" ? "gone cold" : "left alone" }) : null
+          st ? h("span", { class: "age " + st, text: st === "cold" ? "gone cold" : "left alone" }) : null,
+          S.openChange ? h("span", { class: "chg-note", text: changeNote(S.openChange) }) : null
         ])
       ]),
       h("button", { class: "x", type: "button", "aria-label": "Close", onclick: closeCard, text: "×" })
@@ -626,7 +778,10 @@ a { color: var(--accent); }
 
     if (ed) {
       var del = h("button", { class: "btn danger", type: "button", text: "Delete", onclick: function () {
-        if (del.dataset.armed) { var id = c.id; closeCard(); write(id, function () { return S.db.collection("cards").doc(id).delete(); }); }
+        if (del.dataset.armed) {
+          var id = c.id; closeCard(); ownEdit(id, null);
+          write(id, function () { return S.db.collection("cards").doc(id).delete(); }).then(function (ok) { if (ok) saveOwnEdit(id, null); });
+        }
         else { del.dataset.armed = "1"; del.textContent = "Delete for good?"; setTimeout(function () { delete del.dataset.armed; del.textContent = "Delete"; }, 4000); }
       } });
       body.push(h("div", { class: "acts" }, [
@@ -646,8 +801,13 @@ a { color: var(--accent); }
     if (notes !== base.notes) f.notes = notes;
     var b = el("dlg-save"); if (b) b.disabled = true;
     if (!Object.keys(f).length) { S.dirty = false; return; }
+    var patch = {};
+    if (f.title) patch.t = f.title;
+    if ("next_step" in f) patch.n = fnv(f.next_step);
+    if (Object.keys(patch).length) ownEdit(id, patch);
     // The typed text stays in the fields (dirty stays true) until the write is confirmed.
     updateCard(id, f).then(function (ok) {
+      if (ok && Object.keys(patch).length) saveOwnEdit(id, patch);
       if (S.openId !== id) { if (ok) toast("Saved."); return; }
       if (ok) { S.dirty = false; toast("Saved."); renderDialog(); }
       else { var again = el("dlg-save"); if (again) again.disabled = false; }
@@ -677,7 +837,12 @@ a { color: var(--accent); }
     };
     if (next) doc.next_step_edited_at = now;
     el("add-dlg").close(); el("add-form").reset();
-    write(id, function () { return S.db.collection("cards").doc(id).set(doc); }).then(function () { S.tab = doc.status; });
+    var entry = entryOf(Object.assign({ id: id }, doc));
+    ownEdit(id, entry);
+    write(id, function () { return S.db.collection("cards").doc(id).set(doc); }).then(function (ok) {
+      S.tab = doc.status;
+      if (ok) saveOwnEdit(id, entry);
+    });
   }
 
   // ---------- wiring ----------
@@ -687,7 +852,7 @@ a { color: var(--accent); }
   el("add-btn").addEventListener("click", function () { el("add-dlg").showModal(); el("add-name").focus(); });
   el("add-close").addEventListener("click", function () { el("add-dlg").close(); });
   el("add-form").addEventListener("submit", addCard);
-  el("card-dlg").addEventListener("close", function () { S.openId = null; S.dirty = false; S.base = null; });
+  el("card-dlg").addEventListener("close", function () { S.openId = null; S.openChange = null; S.dirty = false; S.base = null; });
   // Esc or a click outside does not throw typed text away. The x button does.
   el("card-dlg").addEventListener("cancel", function (e) {
     if (S.dirty) { e.preventDefault(); toast("Unsaved changes. Save them, or close with x to discard."); }
@@ -702,6 +867,7 @@ a { color: var(--accent); }
   S.repo = pref("repo") || "";
   S.tab = pref("tab") || "doing";
   setInterval(function () { if (S.loaded && !S.dead) { renderStatus(); } }, 60000);
+  document.addEventListener("visibilitychange", armSeenTimer);
 
   async function start() {
     render();
@@ -716,6 +882,7 @@ a { color: var(--accent); }
     }
     S.db = db;
     try { S.canEdit = user ? !!(await user.canEdit()) : false; } catch (e) { S.canEdit = false; }
+    loadSeen(user);
 
     // Loading is time-limited: after 10 s, say so and keep listening.
     var timer = setTimeout(function () { S.slow = true; render(); }, 10000);
@@ -735,6 +902,7 @@ a { color: var(--accent); }
       });
       S.loaded = true; settled(snap.metadata);
       render();
+      seenReady();
       // Refresh an open card only when it changed, and never while its fields are
       // being edited: a re-render would drop the typed text and the focus.
       if (S.openId && !S.dirty) {

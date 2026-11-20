@@ -15,13 +15,20 @@ plugins from it.
 
 Each plugin's README says what it needs and how to use it. Read it before installing.
 
-context-band in the desktop app, with nothing running:
+## Screenshots
+
+### context-band
+
+The band in the desktop app, with nothing running:
 
 ![context-band: a sleeping crab and Idle, then context fill, plan usage and the current Spotify track](plugins/context-band/docs/band.webp)
 
-<img src="plugins/openai-images/docs/example-hello-world.jpg" alt="A portrait poster: bold white &quot;Hello World&quot; over a sunset at sea" width="200">
+### openai-images
 
-*Made with openai-images:* `/openai-images:image a poster that says "Hello World" in bold letters on a sunset background`, *for $0.011.*
+An image the plugin made from `/openai-images:image a poster that says "Hello World" in bold letters on a
+sunset background`, for $0.011:
+
+<img src="plugins/openai-images/docs/example-hello-world.jpg" alt="openai-images example: a portrait poster with bold white &quot;Hello World&quot; over a sunset at sea" width="200">
 
 ## Install
 

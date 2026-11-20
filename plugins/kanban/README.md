@@ -21,6 +21,9 @@ current: a small hook notes each session, and a sync turns the sessions into car
   are gone next time. "Mark all seen" clears them at once; opening a card clears that card. Your "last
   seen" is the same on all your devices, and your own changes on the page are never marked for you.
 - **Stale marks:** a Todo or Doing card is marked after 14 days without work, and marked cold after 30.
+- **A color per project:** each card has a stripe in the color of its project (its first repo), and the
+  repo tags and filter chips have the same color. A new project gets a color of its own, and keeps it.
+  Change it in the card's dialog, under Repos.
 - **A repo filter**, a search, and a "Stale" switch.
 - **Editing on the page:** drag a card to another column, edit its title, next step and notes, add a
   card. What you set by hand stays: sync changes a status only when there is newer work on the card,

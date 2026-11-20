@@ -145,6 +145,48 @@ h1 { font-family: var(--font-head); font-size: 24px; font-weight: 600; margin: 0
 .age.stale { background: var(--stale-soft); color: var(--stale); font-weight: 600; }
 .age.cold { background: var(--cold-soft); color: var(--cold); font-weight: 600; }
 
+/* Project colors. Each project (a card's first repo) has one of eight hues,
+   stored in meta/projects so it never changes. The card gets a left stripe in
+   it; repo tags and filter chips get a dot, and tags a tint. Tag text stays in
+   --ink and the project name is always shown, so color is never the only cue.
+   The hues are a categorical palette checked for color-blind separation, with
+   steps chosen for each theme. */
+:root {
+  --proj-1: #2a78d6; --proj-2: #eb6834; --proj-3: #1baf7a; --proj-4: #eda100;
+  --proj-5: #e87ba4; --proj-6: #008300; --proj-7: #6250d6; --proj-8: #e34948;
+  --proj-mix: 16%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --proj-1: #3987e5; --proj-2: #d95926; --proj-3: #199e70; --proj-4: #c98500;
+    --proj-5: #d55181; --proj-6: #0ca30c; --proj-7: #9085e9; --proj-8: #e66767;
+    --proj-mix: 26%;
+  }
+}
+:root[data-theme="dark"] {
+  --proj-1: #3987e5; --proj-2: #d95926; --proj-3: #199e70; --proj-4: #c98500;
+  --proj-5: #d55181; --proj-6: #0ca30c; --proj-7: #9085e9; --proj-8: #e66767;
+  --proj-mix: 26%;
+}
+.card { border-left-width: 4px; padding-left: 10px; }
+.card.has-proj { border-left-color: var(--pc); }
+.repo.has-proj { color: var(--ink); background: color-mix(in oklab, var(--pc) var(--proj-mix), var(--surface)); }
+.repo.has-proj::before, .chip.has-proj::before {
+  content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--pc); margin-right: 5px; vertical-align: 1px;
+}
+.chip.has-proj::before { width: 8px; height: 8px; margin-right: 6px; }
+.chip.has-proj[aria-pressed="true"]::before { box-shadow: 0 0 0 1.5px var(--bg); }
+.proj-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; }
+.proj-row > .repo { justify-self: start; }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.sw { width: 22px; height: 22px; border-radius: 50%; border: 0; padding: 0; background: var(--pc); }
+.sw[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
+@media (max-width: 520px) {
+  .proj-row { grid-template-columns: minmax(0, 1fr); }
+  .sw { width: 28px; height: 28px; }
+}
+
 /* Page states */
 .state { background: var(--surface); border: 1px dashed var(--line); border-radius: 14px; padding: 28px 20px; text-align: center; color: var(--muted); }
 .state strong { display: block; color: var(--ink); font-family: var(--font-head); font-size: 17px; margin-bottom: 4px; }
@@ -244,7 +286,7 @@ a { color: var(--accent); }
 <script>
 (function () {
   "use strict";
-  var PAGE_VERSION = 4;
+  var PAGE_VERSION = 5;
   var SEEN_AFTER_MS = 10000;  // the page counts as seen after 10 s on screen
   var COLUMNS = [
     { key: "idea", label: "Ideas", empty: "No ideas parked here." },
@@ -567,8 +609,86 @@ a { color: var(--accent); }
     });
   }
 
+  // ---------- project colors ----------
+  // A card's project is its first repo. meta/projects holds {colors: {repo: 1..8}}.
+  // A project without a stored color gets the least-used one (ties: the lowest).
+  // Projects with more cards go first, so on a new board the biggest get the most
+  // distinct hues. The owner's page then stores the color, so it never changes.
+  // Past eight projects, colors are reused.
+  var PROJ_NAMES = ["blue", "orange", "aqua", "yellow", "pink", "green", "violet", "red"];
+  var P = { stored: Object.create(null), loaded: false, exists: false, saving: false, failed: false, map: Object.create(null) };
+  function validSlot(v) { return typeof v === "number" && v >= 1 && v <= PROJ_NAMES.length && Math.floor(v) === v; }
+  function storedSlot(repo) {
+    return Object.prototype.hasOwnProperty.call(P.stored, repo) && validSlot(P.stored[repo]) ? P.stored[repo] : 0;
+  }
+  function assignProjects() {
+    var first = Object.create(null), n = Object.create(null);
+    S.cards.forEach(function (c) {
+      var t = time(c.created) || time(c.last_touched) || Infinity;
+      arr(c.repos).forEach(function (r) {
+        if (typeof r !== "string" || !r) return;
+        n[r] = (n[r] || 0) + 1;
+        if (!(first[r] <= t)) first[r] = t;
+      });
+    });
+    var repos = Object.keys(first).sort(function (a, b) { return n[b] - n[a] || first[a] - first[b] || a.localeCompare(b); });
+    var map = Object.create(null), used = PROJ_NAMES.map(function () { return 0; });
+    repos.forEach(function (r) { var s = storedSlot(r); if (s) { map[r] = s; used[s - 1]++; } });
+    repos.forEach(function (r) {
+      if (map[r]) return;
+      var best = 0;
+      for (var i = 1; i < used.length; i++) if (used[i] < used[best]) best = i;
+      map[r] = best + 1; used[best]++;
+    });
+    P.map = map;
+  }
+  function projVar(repo) { var s = P.map[repo]; return s ? "--pc: var(--proj-" + s + ")" : null; }
+  function repoTag(r) {
+    var v = projVar(str(r));
+    return h("span", { class: "repo" + (v ? " has-proj" : ""), style: v, text: str(r) });
+  }
+  function paintCard(node, c) {
+    var v = projVar(str(arr(c.repos)[0]));
+    if (v) { node.classList.add("has-proj"); node.setAttribute("style", v); }
+  }
+  function writeProjects(colors) {
+    var ref = S.db.collection("meta").doc("projects");
+    return P.exists ? ref.update({ colors: colors }) : ref.set({ colors: colors });
+  }
+  // The owner's page stores colors for new projects. Read-only viewers compute the same ones.
+  function saveNewProjects() {
+    if (!S.canEdit || !S.loaded || !P.loaded || P.saving || P.failed || S.dead) return;
+    var add = Object.keys(P.map).filter(function (r) { return storedSlot(r) !== P.map[r]; });
+    if (!add.length) return;
+    var colors = Object.assign(Object.create(null), P.stored);
+    add.forEach(function (r) { colors[r] = P.map[r]; });
+    P.saving = true;
+    writeProjects(colors).then(function () { P.saving = false; }, function () { P.saving = false; P.failed = true; });
+  }
+  function setProjectColor(repo, slot) {
+    if (!S.canEdit || !P.loaded || storedSlot(repo) === slot) return;
+    var colors = Object.assign(Object.create(null), P.stored);
+    colors[repo] = slot;
+    write("\u0000projects", function () { return writeProjects(colors); });
+  }
+  function repoSection(repos) {
+    if (!S.canEdit || !P.loaded) return h("div", { class: "repos" }, repos.map(repoTag));
+    return h("div", { class: "rows" }, repos.map(function (r) {
+      r = str(r);
+      return h("div", { class: "proj-row" }, [repoTag(r),
+        h("div", { class: "swatches", role: "group", "aria-label": "Color for " + r }, PROJ_NAMES.map(function (name, i) {
+          var on = P.map[r] === i + 1;
+          return h("button", {
+            class: "sw", type: "button", "aria-pressed": String(on), "aria-label": name, title: name,
+            style: "--pc: var(--proj-" + (i + 1) + ")", onclick: function () { setProjectColor(r, i + 1); }
+          });
+        }))]);
+    }));
+  }
+
   // ---------- render ----------
   function render() {
+    assignProjects(); saveNewProjects();
     el("board-title").textContent = str(S.meta.title) || "Kanban";
     S.diff = diffBoard(S.seenKnown && S.loaded ? S.seenBase : null, S.cards);
     if (!S.diff.total) S.changesOnly = false;
@@ -661,8 +781,9 @@ a { color: var(--accent); }
     var names = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a] || a.localeCompare(b); });
     if (S.repo && S.repo !== "\u0000none" && !counts[S.repo]) S.repo = "";
     function chip(label, n, val) {
+      var pv = val && val !== "\u0000none" ? projVar(val) : null;
       return h("button", {
-        class: "chip", type: "button", "aria-pressed": String(S.repo === val),
+        class: "chip" + (pv ? " has-proj" : ""), style: pv, type: "button", "aria-pressed": String(S.repo === val),
         onclick: function () { S.repo = val; pref("repo", val); render(); }
       }, [label, h("span", { class: "n", text: String(n) })]);
     }
@@ -717,13 +838,14 @@ a { color: var(--accent); }
       str(c.next_step) && c.status !== "done" && !isClosed(c.status)
         ? h("span", { class: "nx" }, [h("b", { text: "Next: " }), c.next_step]) : null,
       h("span", { class: "f" }, [
-        h("span", { class: "repos" }, arr(c.repos).slice(0, 3).map(function (r) { return h("span", { class: "repo", text: str(r) }); })),
+        h("span", { class: "repos" }, arr(c.repos).slice(0, 3).map(repoTag)),
         h("span", {
           class: "age" + (st ? " " + st : ""), text: ageLabel(c.last_touched),
           title: st === "cold" ? "Gone cold: not touched for 30 days or more" : st === "stale" ? "Left alone for 14 days or more" : "Last touched " + dateLabel(c.last_touched)
         })
       ])
     ]);
+    paintCard(node, c);
     if (S.canEdit) {
       node.addEventListener("dragstart", function (e) { e.dataTransfer.setData("text/plain", c.id); e.dataTransfer.effectAllowed = "move"; node.classList.add("dragging"); });
       node.addEventListener("dragend", function () { node.classList.remove("dragging"); });
@@ -808,7 +930,7 @@ a { color: var(--accent); }
     }))));
 
     var repos = arr(c.repos), folders = arr(c.folders);
-    if (repos.length) body.push(sec("Repos", h("div", { class: "repos" }, repos.map(function (r) { return h("span", { class: "repo", text: str(r) }); }))));
+    if (repos.length) body.push(sec("Repos", repoSection(repos)));
     if (folders.length) body.push(sec("Folders", h("div", { class: "rows" }, folders.map(function (f) { return h("span", { class: "mono", text: str(f) }); }))));
 
     if (ed) {
@@ -949,6 +1071,13 @@ a { color: var(--accent); }
       S.meta = snap.exists ? (snap.data() || {}) : {};
       render();
     }, function () { /* the board works without its meta document */ });
+    db.doc("meta/projects").onSnapshot(function (snap) {
+      var d = snap.exists ? (snap.data() || {}) : {};
+      P.stored = Object.assign(Object.create(null), d.colors && typeof d.colors === "object" ? d.colors : {});
+      P.exists = !!snap.exists; P.loaded = true;
+      render();
+      if (S.openId && !S.dirty) renderDialog();
+    }, function () { P.loaded = true; P.failed = true; render(); /* colors are computed without it */ });
   }
   start();
 })();

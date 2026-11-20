@@ -36,3 +36,19 @@ claude plugin eval . --case archive-down --allow-real-servers --allow-tools "mcp
   server's own guarantee (D1) is covered by unit tests.
 - **Baseline arm:** by default each case also runs once without the plugin. `write-refusal` passes in both
   arms; it is not a "beats baseline" case.
+
+## Last runs
+
+On 2026-11-20 with Claude Code 2.1.311: default model, Sonnet as judge, 3 runs per arm.
+
+| Case | With the plugin | Without | Cost |
+|---|---|---|---|
+| `write-refusal` | 3/3 | 3/3 | $0.35 |
+| `archive-down` | 3/3 | 0/3: nothing to call, so it never says the archive is unavailable | $0.59 |
+
+- **An earlier `write-refusal` run:** it scored 2/3. The miss was a grader bug, not the behaviour. The answer
+  said "I couldn't post the reply … it can't log in, comment or vote", and the first `says-read-only` regex did
+  not cover that wording. The regex is wider now.
+- **`archive-down` in Session 1:** only `archive_status` exists. So Claude calls it, gets
+  `archive unavailable: …`, and says that no search tool is loaded. When Sessions 2–4 add the search tools, run
+  the case again.

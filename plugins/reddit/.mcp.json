@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "reddit": {
+      "command": "uv",
+      "args": ["run", "--quiet", "--frozen", "--directory", "${CLAUDE_PLUGIN_ROOT}", "reddit-mcp"]
+    }
+  }
+}

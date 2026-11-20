@@ -45,17 +45,17 @@ Session 1 runs first. Sessions 2, 3 and 4 can run in parallel after it, because 
 
 ### Session 1: foundation and live probes
 
-- [ ] The folder `plugins/reddit/` has `.claude-plugin/plugin.json`, `.mcp.json`, `pyproject.toml` and `README.md`.
-- [ ] `.claude-plugin/marketplace.json` lists the `reddit` plugin.
-- [ ] An Arctic Shift client module has these features:
+- [x] The folder `plugins/reddit/` has `.claude-plugin/plugin.json`, `.mcp.json`, `pyproject.toml` and `README.md`.
+- [x] `.claude-plugin/marketplace.json` lists the `reddit` plugin.
+- [x] An Arctic Shift client module has these features:
   - request pacing (R1)
   - a `fields=` whitelist (R3)
   - batch splitting (R5)
   - a descriptive User-Agent (R6)
   - the SQLite cache (R7)
-- [ ] Error handling: 429 wait-and-retry-once (E1), bounded 422 narrowing (E2), outage vs. query error from the status feed (E3), and verbatim 400 errors (E4).
-- [ ] An `archive_status` tool reports post and comment freshness in plain words. (L1, L2)
-- [ ] Live probes answer the 5 open questions from the report. The answers are recorded in `plugins/reddit/docs/probes.md`. Limit: at most 20 requests.
+- [x] Error handling: 429 wait-and-retry-once (E1), bounded 422 narrowing (E2), outage vs. query error from the status feed (E3), and verbatim 400 errors (E4).
+- [x] An `archive_status` tool reports post and comment freshness in plain words. (L1, L2)
+- [x] Live probes answer the 5 open questions from the report. The answers are recorded in `plugins/reddit/docs/probes.md`. Limit: at most 20 requests.
   - Does keyword search work on small subreddits?
   - Which order does `comments/tree` use for child comments?
   - Does the offset unit `m` mean month or minute?
@@ -65,15 +65,16 @@ Session 1 runs first. Sessions 2, 3 and 4 can run in parallel after it, because 
     - On 2026-11-21, `"power limit"` worked.
     - Two words, `OR` and `-` returned 422 in under 0.5 s.
     - Test each one 3 times, with spacing.
+    - Answers: [`docs/probes.md`](docs/probes.md). Probes used 20 requests.
   - Is a 422 that returns in under 1 s a rejected query or a rate limit? `deep_search` uses the answer to choose between narrowing the query and waiting.
-- [ ] Claude Code loads the plugin, and Claude can call `archive_status`.
-- [ ] It creates 3 tool modules for the parallel sessions:
+- [x] Claude Code loads the plugin, and Claude can call `archive_status`.
+- [x] It creates 3 tool modules for the parallel sessions:
   - `tools/posts.py` for Session 2
   - `tools/comments.py` for Session 3
   - `tools/discovery.py` for Session 4
 
   The server already registers each module. Sessions 2–4 then edit only their own module, its tests, and its eval cases.
-- [ ] Shared helpers are in the client module: permalink building, `score_status`, output trimming, and time-filter conversion. Sessions 2–4 import them and do not change them.
+- [x] Shared helpers are in the client module: permalink building, `score_status`, output trimming, and time-filter conversion. Sessions 2–4 import them and do not change them.
 
 ### Session 2: posts, listings and search
 
@@ -83,13 +84,17 @@ Session 1 runs first. Sessions 2, 3 and 4 can run in parallel after it, because 
 - [ ] `search_posts(subreddits[], query, sort, time | after/before, limit)`:
   - It needs at least 1 subreddit or author. (T5)
   - It maps the Reddit operators `author:`, `title:`, `selftext:`, `flair:`, `nsfw:`, `url:`, `site:`, `self:` and `NOT`. (T7)
+  - It sends the archive one keyword or one quoted phrase per field. It applies AND, OR and `-exclude` locally.
+    Reason: in the probes only a quoted phrase ever worked on posts ([`docs/probes.md`](docs/probes.md), Q1 and Q6).
   - When the archive returns 422, it falls back to a labelled local scan. (T6)
 - [ ] Reddit's time filters `hour/day/week/month/year/all` and custom date ranges become absolute epoch seconds. "Last 3 months" works. (T8)
 - [ ] `deep_search(concepts[][], subreddits[], after?, before?, in: posts|comments|both, max_requests=30)` finds older and less exact matches:
   - `concepts` is AND-of-OR groups, for example `[["9900k","i9-9900k","9900kf"], ["power limit","PL1","PL2","undervolt","underclock","TDP"]]`. Claude writes the groups.
   - Server step:
     - Send the most specific term as `title`, then as `query` (title + selftext).
-    - Walk time windows backward, 100 items per page. On HTTP 422, halve the window.
+    - Walk time windows backward, 100 items per page.
+    - On a slow 422 (1 s or more, a real timeout), halve the window.
+    - On a fast 422 (under 1 s, load shedding), wait at least 10 s and retry the same window once. After a second fast 422, halve the window. `QueryTooHeavy.fast` tells the two apart ([`docs/probes.md`](docs/probes.md), Q7).
   - Comment step: `comments/search` with phrase/OR syntax, grouped by `link_id`, then `posts/ids`.
   - Local step:
     - Match the other concept groups on title and selftext.
@@ -109,6 +114,7 @@ Session 1 runs first. Sessions 2, 3 and 4 can run in parallel after it, because 
 - [ ] `get_comment_context(comment_id_or_url, context≤8)` walks up the parent comments. (T11)
 - [ ] `search_comments(subreddits[], query, time | after/before, limit)`:
   - It passes phrase, OR and exclusion syntax to the archive. (T7)
+    Comment search syntax is not probed yet. Session 3 checks it in its live test. If the archive rejects a form, the tool applies it locally, as `search_posts` does.
   - It uses the same 422 fallback as `search_posts`.
 - [ ] Comment results carry a completeness note while comment ingest lags. (O4)
 

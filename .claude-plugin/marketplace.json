@@ -21,6 +21,11 @@
       "name": "kanban",
       "source": "./plugins/kanban",
       "description": "A kanban board of your work streams that updates itself from your Claude sessions. Each card says where you left off and what comes next"
+    },
+    {
+      "name": "reddit",
+      "source": "./plugins/reddit",
+      "description": "Free, keyless, read-only Reddit research through the Arctic Shift archive, with honest labels for what an archive cannot do"
     }
   ]
 }

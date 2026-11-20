@@ -1,0 +1,306 @@
+[
+ {
+  "n": 1,
+  "label": "status",
+  "url": "https://status.arctic-shift.photon-reddit.com/api",
+  "status": 200,
+  "elapsed": 0.11,
+  "at": "2026-11-20T22:32:00Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8"
+  },
+  "count": null
+ },
+ {
+  "n": 2,
+  "label": "global-posts",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?limit=5&sort=desc&fields=id%2Csubreddit%2Ccreated_utc%2Cretrieved_on",
+  "status": 200,
+  "elapsed": 0.92,
+  "at": "2026-11-20T22:32:05Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "56",
+   "x-ratelimit-reset-at": "1795213980000",
+   "cf-cache-status": "MISS"
+  },
+  "count": 5
+ },
+ {
+  "n": 3,
+  "label": "before-3m",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=AskReddit&before=3m&limit=1&sort=desc&fields=id%2Ccreated_utc",
+  "status": 200,
+  "elapsed": 1.2,
+  "at": "2026-11-20T22:32:09Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "52",
+   "x-ratelimit-reset-at": "1795213980000",
+   "cf-cache-status": "MISS"
+  },
+  "count": 1
+ },
+ {
+  "n": 4,
+  "label": "small-sub-query",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=HHKB&query=topre&limit=10&sort=desc&fields=id%2Ctitle%2Ccreated_utc%2Cnum_comments%2Cscore%2Cselftext",
+  "status": 422,
+  "elapsed": 0.37,
+  "at": "2026-11-20T22:32:13Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "47",
+   "x-ratelimit-reset-at": "1795213980000",
+   "cf-cache-status": "BYPASS"
+  },
+  "error": "Timeout. Maybe slow down a bit",
+  "count": null
+ },
+ {
+  "n": 5,
+  "label": "tree",
+  "url": "https://arctic-shift.photon-reddit.com/api/comments/tree?link_id=wi7uhk&limit=200",
+  "status": 200,
+  "elapsed": 0.81,
+  "at": "2026-11-20T22:32:18Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "43",
+   "x-ratelimit-reset-at": "1795213980000",
+   "cf-cache-status": "MISS"
+  },
+  "count": 9
+ },
+ {
+  "n": 6,
+  "label": "comments-4d-full",
+  "url": "https://arctic-shift.photon-reddit.com/api/comments/search?subreddit=AskReddit&before=1794868320&limit=2&sort=desc",
+  "status": 200,
+  "elapsed": 0.82,
+  "at": "2026-11-20T22:32:22Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "39",
+   "x-ratelimit-reset-at": "1795213980000",
+   "cf-cache-status": "MISS"
+  },
+  "count": 2
+ },
+ {
+  "n": 7,
+  "label": "comments-45d-full",
+  "url": "https://arctic-shift.photon-reddit.com/api/comments/search?subreddit=AskReddit&before=1791325920&limit=2&sort=desc",
+  "status": 200,
+  "elapsed": 0.78,
+  "at": "2026-11-20T22:32:26Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "34",
+   "x-ratelimit-reset-at": "1795213980000",
+   "cf-cache-status": "MISS"
+  },
+  "count": 2
+ },
+ {
+  "n": 8,
+  "label": "title-and-r1",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=buildapc&title=power+limit&limit=5&sort=desc&fields=id%2Ctitle%2Ccreated_utc",
+  "status": 422,
+  "elapsed": 0.35,
+  "at": "2026-11-20T22:32:30Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "30",
+   "x-ratelimit-reset-at": "1795213980000",
+   "cf-cache-status": "BYPASS"
+  },
+  "error": "Timeout. Maybe slow down a bit",
+  "count": null
+ },
+ {
+  "n": 9,
+  "label": "title-or-r1",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=buildapc&title=undervolt+OR+underclock&limit=5&sort=desc&fields=id%2Ctitle%2Ccreated_utc",
+  "status": 422,
+  "elapsed": 0.42,
+  "at": "2026-11-20T22:32:34Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "26",
+   "x-ratelimit-reset-at": "1795213980000",
+   "cf-cache-status": "BYPASS"
+  },
+  "error": "Timeout. Maybe slow down a bit",
+  "count": null
+ },
+ {
+  "n": 10,
+  "label": "title-phrase-r1",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=buildapc&title=%22power+limit%22&limit=5&sort=desc&fields=id%2Ctitle%2Ccreated_utc",
+  "status": 200,
+  "elapsed": 6.19,
+  "at": "2026-11-20T22:32:44Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "22",
+   "x-ratelimit-reset-at": "1795213980000",
+   "cf-cache-status": "MISS"
+  },
+  "count": 5
+ },
+ {
+  "n": 11,
+  "label": "title-exclude-r1",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=buildapc&title=undervolt+-laptop&limit=5&sort=desc&fields=id%2Ctitle%2Ccreated_utc",
+  "status": 422,
+  "elapsed": 0.37,
+  "at": "2026-11-20T22:32:48Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "12",
+   "x-ratelimit-reset-at": "1795213980000",
+   "cf-cache-status": "BYPASS"
+  },
+  "error": "Timeout. Maybe slow down a bit",
+  "count": null
+ },
+ {
+  "n": 12,
+  "label": "title-and-r2",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=buildapc&title=power+limit&limit=5&sort=desc&fields=id%2Ctitle%2Ccreated_utc",
+  "status": 422,
+  "elapsed": 0.37,
+  "at": "2026-11-20T22:32:51Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "9",
+   "x-ratelimit-reset-at": "1795213980000",
+   "cf-cache-status": "BYPASS"
+  },
+  "error": "Timeout. Maybe slow down a bit",
+  "count": null
+ },
+ {
+  "n": 13,
+  "label": "title-or-r2",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=buildapc&title=undervolt+OR+underclock&limit=5&sort=desc&fields=id%2Ctitle%2Ccreated_utc",
+  "status": 422,
+  "elapsed": 0.36,
+  "at": "2026-11-20T22:32:55Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "5",
+   "x-ratelimit-reset-at": "1795213980000",
+   "cf-cache-status": "BYPASS"
+  },
+  "error": "Timeout. Maybe slow down a bit",
+  "count": null
+ },
+ {
+  "n": 14,
+  "label": "title-phrase-r2",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=buildapc&title=%22power+limit%22&limit=5&sort=desc&fields=id%2Ctitle%2Ccreated_utc",
+  "status": 422,
+  "elapsed": 0.23,
+  "at": "2026-11-20T22:32:59Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "1",
+   "x-ratelimit-reset-at": "1795213980000",
+   "cf-cache-status": "BYPASS"
+  },
+  "error": "Timeout. Maybe slow down a bit",
+  "count": null
+ },
+ {
+  "n": 15,
+  "label": "title-exclude-r2",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=buildapc&title=undervolt+-laptop&limit=5&sort=desc&fields=id%2Ctitle%2Ccreated_utc",
+  "status": 422,
+  "elapsed": 0.23,
+  "at": "2026-11-20T22:33:03Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "57",
+   "x-ratelimit-reset-at": "1795214040000",
+   "cf-cache-status": "BYPASS"
+  },
+  "error": "Timeout. Maybe slow down a bit",
+  "count": null
+ },
+ {
+  "n": 16,
+  "label": "title-and-r3",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=buildapc&title=power+limit&limit=5&sort=desc&fields=id%2Ctitle%2Ccreated_utc",
+  "status": 422,
+  "elapsed": 5.48,
+  "at": "2026-11-20T22:33:12Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "54",
+   "x-ratelimit-reset-at": "1795214040000",
+   "cf-cache-status": "BYPASS"
+  },
+  "error": "Timeout. Maybe slow down a bit",
+  "count": null
+ },
+ {
+  "n": 17,
+  "label": "title-or-r3",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=buildapc&title=undervolt+OR+underclock&limit=5&sort=desc&fields=id%2Ctitle%2Ccreated_utc",
+  "status": 422,
+  "elapsed": 0.32,
+  "at": "2026-11-20T22:33:16Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "44",
+   "x-ratelimit-reset-at": "1795214040000",
+   "cf-cache-status": "BYPASS"
+  },
+  "error": "Timeout. Maybe slow down a bit",
+  "count": null
+ },
+ {
+  "n": 18,
+  "label": "title-phrase-r3",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=buildapc&title=%22power+limit%22&limit=5&sort=desc&fields=id%2Ctitle%2Ccreated_utc",
+  "status": 422,
+  "elapsed": 0.24,
+  "at": "2026-11-20T22:33:19Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "41",
+   "x-ratelimit-reset-at": "1795214040000",
+   "cf-cache-status": "BYPASS"
+  },
+  "error": "Timeout. Maybe slow down a bit",
+  "count": null
+ },
+ {
+  "n": 19,
+  "label": "title-exclude-r3",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=buildapc&title=undervolt+-laptop&limit=5&sort=desc&fields=id%2Ctitle%2Ccreated_utc",
+  "status": 422,
+  "elapsed": 0.18,
+  "at": "2026-11-20T22:33:23Z",
+  "headers": {
+   "content-type": "application/json; charset=utf-8",
+   "x-ratelimit-reset": "37",
+   "x-ratelimit-reset-at": "1795214040000",
+   "cf-cache-status": "BYPASS"
+  },
+  "error": "Timeout. Maybe slow down a bit",
+  "count": null
+ },
+ {
+  "n": 20,
+  "label": "small-sub-title",
+  "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=HHKB&title=topre&limit=10&sort=desc&fields=id%2Ctitle%2Ccreated_utc%2Cnum_comments%2Cscore",
+  "status": 422,
+  "elapsed": 0.59,
+  "at": "2026-11-20T22:35:34Z",
+  "error": "Timeout. Maybe slow down a bit",
+  "count": null
+ }
+]

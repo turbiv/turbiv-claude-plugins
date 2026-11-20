@@ -22,13 +22,13 @@ They run with Claude Code's eval runner: `claude plugin eval plugins/reddit`.
 
 | ID | Prompt | Owner | Type | Pass criteria |
 |---|---|---|---|---|
-| `read-post` | "Summarize this post: https://www.reddit.com/r/buildapc/comments/wi7uhk/intel_9900k_underclockingpower_limit_experiments/" | 3 | Live, beats baseline | Calls `get_thread` with ID `wi7uhk`. The summary matches the post body and its 2 comments. It does not invent more comments. It gives the date (2022-08-07) and labels the score (9) as a snapshot. |
+| `read-post` | "Summarize this post: https://www.reddit.com/r/buildapc/comments/wi7uhk/intel_9900k_underclockingpower_limit_experiments/" | 3 | Live, beats baseline | Calls `get_thread` with ID `wi7uhk`. The summary matches the post body and the archived comments: 22 comments, 9 of them top-level. It does not invent comments, and it does not report the stale `num_comments` of 2 as the comment count. It gives the date (2022-08-07) and labels the score (9) as a snapshot. |
 | `find-post` | "I want to know what power limits I should set for my Intel i9 9900K." | 2 + 5 | Live, beats baseline | Calls `deep_search` with at least 2 concept groups (the CPU model, and power-limit terms) over at least 2 fitting subreddits (r/buildapc, r/intel, r/overclocking). `wi7uhk` is in its candidates, and the answer cites it. Fallback, which passes with a note: Claude's web search finds the URL, then the plugin reads it. |
 | `trending` | "What is currently trending on Reddit?" | 4 | Live | Says that Reddit's `hot` and `r/all` are not available from an archive. Asks for a topic, or picks a set of large subreddits and says which. Ranks posts by recent comment activity and labels that method. Does not present the list as Reddit's own "hot". |
 | `keyboard` | "What is the most recommended mechanical keyboard on Reddit in the last 3 months?" | 4 + 5 | Live, beats baseline | Uses `count_mentions` over at least 2 subreddits. Gives mention counts and at least 3 thread links. States the exact date window. |
 | `find-subs` | "Which subreddits should I follow for home espresso?" | 4 | Live | Lists r/espresso and r/Coffee with subscriber counts and posts per day. Does not claim topic search. |
 | `most-discussed` | "What were the 5 most discussed posts in r/buildapc last month?" | 2 | Live | Sorts by comment count on the client. States the window, the number of posts scanned, and any truncation. |
-| `thread-follow-up` | Turn 1: `read-post`. Turn 2: "What did the commenters say, and did OP reply?" | 3 | Live | Reads the comment tree. Reports only the comments that exist. Says correctly whether OP replied. |
+| `thread-follow-up` | Turn 1: `read-post`. Turn 2: "What did the commenters say, and did OP reply?" | 3 | Live | Reads the comment tree. Reports only the comments that exist. Says that OP (u/willswill) replied, 10 times. |
 | `search-syntax` | "Find posts in r/MechanicalKeyboards with the flair 'Help' about key chatter from 2025." | 2 | Live | Maps the flair to `link_flair_text` and 2025 to an absolute date range. Every result is from 2025. |
 | `share-link` | "Open this link: https://www.reddit.com/r/<sub>/s/<code>" | 4 | Live | Resolves the share link to the right post. Session 4 picks a real link and writes it into the case. |
 | `global-search` | "Search all of Reddit for 'Framework laptop hinge'." | 2 | Live | Says that the archive has no global keyword search. Picks fitting subreddits (for example r/framework) and searches them. |
@@ -42,7 +42,8 @@ They run with Claude Code's eval runner: `claude plugin eval plugins/reddit`.
 **Fact:** checked against Arctic Shift on 2026-11-21.
 
 - `wi7uhk`: "Intel 9900K Underclocking/Power Limit Experiments", r/buildapc, by u/willswill.
-- Created 2022-08-07 (`created_utc` 1659849574). Score 9, 2 comments.
+- Created 2022-08-07 (`created_utc` 1659849574). Score 9. Its `num_comments` is 2, but that is the frozen 2022 snapshot.
+- **Fact** (Session 1 probe, 2026-11-20): `comments/tree?link_id=wi7uhk` returns 22 comments. 9 are top-level, and the newest is from 2026-04-09. OP (u/willswill) wrote 10 of them. The tree is saved as `tests/fixtures/comments/tree-wi7uhk.json`.
 - `posts/search?subreddit=buildapc&title=9900k` returned HTTP 200 in 7.4 s. The results were newest first and all from 2026, so the 2022 post is far back in the results.
 - Two narrower queries returned HTTP 422 `"Timeout. Maybe slow down a bit"` in 0.35 s:
   - the same `title` search with `after=2022-08-01&before=2022-09-01`

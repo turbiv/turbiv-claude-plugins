@@ -1,0 +1,8 @@
+{
+  "name": "reddit",
+  "version": "0.1.0",
+  "description": "Free, keyless, read-only Reddit research through the Arctic Shift archive: listings, search, threads, users and mention counts, with honest labels for what an archive cannot do",
+  "author": {
+    "name": "Ivan Turbin"
+  }
+}

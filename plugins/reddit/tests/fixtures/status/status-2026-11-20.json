@@ -1,0 +1,39 @@
+{
+ "lastUpdateAt": 1795213918110,
+ "idNotifier": {
+  "isAvailable": true,
+  "failedAt": null,
+  "lastUpdateAt": 1795213905677,
+  "mostRecentPostAt": 1795213895000,
+  "mostRecentCommentAt": 1792515718000
+ },
+ "trailingIdNotifier": {
+  "isAvailable": true,
+  "failedAt": null,
+  "lastUpdateAt": 1795213905677,
+  "mostRecentPostAt": 1795084298000,
+  "mostRecentCommentAt": 1795072205000
+ },
+ "archiver": {
+  "isAvailable": true,
+  "failedAt": null,
+  "lastUpdateAt": 1795213917593,
+  "mostRecentPostAt": 1795213895000,
+  "mostRecentCommentAt": 1795213331000,
+  "hasClients": true
+ },
+ "archiverTrailing": {
+  "isAvailable": true,
+  "failedAt": null,
+  "lastUpdateAt": 1795213917593,
+  "mostRecentPostAt": 1795084298000,
+  "mostRecentCommentAt": null
+ },
+ "api": {
+  "isAvailable": true,
+  "failedAt": null,
+  "lastUpdateAt": 1795213918110,
+  "mostRecentPostAt": 1795213895000,
+  "mostRecentCommentAt": 1795213830000
+ }
+}

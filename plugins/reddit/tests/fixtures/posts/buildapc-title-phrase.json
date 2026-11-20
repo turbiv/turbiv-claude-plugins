@@ -1,0 +1,29 @@
+{
+ "data": [
+  {
+   "created_utc": 1793982241,
+   "id": "1xph0hq",
+   "title": "RTX 5080 TUF Gaming OC Won't Reach 450W Even With 125% Power Limit"
+  },
+  {
+   "created_utc": 1793345233,
+   "id": "1xj8uw6",
+   "title": "RX 9070 XT + 850W Gold Netzteil: harte Abschaltungen auf Standard, stabil mit -10 % Power Limit oder Undervolt. Netzteil oder Grafikkarte?"
+  },
+  {
+   "created_utc": 1792332531,
+   "id": "1x944u9",
+   "title": "BeQuiet! Pure Power 12 M random power-offs with 4080 Super, even with power limit and undervolt"
+  },
+  {
+   "created_utc": 1789489684,
+   "id": "1wh56cs",
+   "title": "Low performance on GALAX RTX 3080 Ti Gamer - Power limit stuck at 220W (PerfCap Reason: PWR)"
+  },
+  {
+   "created_utc": 1788623055,
+   "id": "1w845nx",
+   "title": "5-14400F low Cinebench multi-core score / CPU drops to ~60W despite BIOS power-limit changes"
+  }
+ ]
+}

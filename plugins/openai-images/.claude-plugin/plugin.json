@@ -1,0 +1,8 @@
+{
+  "name": "openai-images",
+  "version": "0.1.0",
+  "description": "Generate and edit images with OpenAI's GPT Image models from Claude Code, with the cost of every image shown",
+  "author": {
+    "name": "Ivan Turbin"
+  }
+}

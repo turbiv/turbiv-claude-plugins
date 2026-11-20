@@ -255,3 +255,150 @@ class ValidateTest(unittest.TestCase):
 
     def test_unknown_values_pass_to_api(self):
         self.ok(background="something-new", output_format="gif")
+
+
+class FilesTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(os.path.realpath(self._tmp.name))
+        self.proj = self.root / "proj"
+        self.proj.mkdir()
+        self.outside = self.root / "outside"
+        self.outside.mkdir()
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def assertCode(self, code, fn, *args):
+        with self.assertRaises(core.ImagesError) as cm:
+            fn(*args)
+        self.assertEqual(cm.exception.code, code)
+        return cm.exception
+
+    def test_resolve_inside(self):
+        self.assertEqual(core.resolve_inside(self.proj, "generated-images"), self.proj / "generated-images")
+        self.assertEqual(core.resolve_inside(self.proj, str(self.proj / "a/b")), self.proj / "a/b")
+        self.assertEqual(core.resolve_inside(self.proj, "."), self.proj)
+
+    def test_dotdot_refused(self):
+        self.assertCode("path_outside_project", core.resolve_inside, self.proj, "../outside/x.png")
+        self.assertCode("path_outside_project", core.resolve_inside, self.proj, "a/../../outside")
+
+    def test_absolute_outside_refused(self):
+        self.assertCode("path_outside_project", core.resolve_inside, self.proj, str(self.outside / "x.png"))
+        self.assertCode("path_outside_project", core.resolve_inside, self.proj, "/etc/passwd")
+        # A sibling folder whose name starts with the project's name is still outside.
+        (self.root / "proj-evil").mkdir()
+        self.assertCode("path_outside_project", core.resolve_inside, self.proj, str(self.root / "proj-evil"))
+
+    def test_symlink_escape_refused(self):
+        secret = self.outside / "secret.png"
+        secret.write_bytes(fixtures.png_bytes())
+        (self.proj / "link.png").symlink_to(secret)
+        (self.proj / "linkdir").symlink_to(self.outside, target_is_directory=True)
+        self.assertCode("path_outside_project", core.check_input_image, self.proj, "link.png")
+        self.assertCode("path_outside_project", core.check_input_image, self.proj, "linkdir/secret.png")
+        self.assertCode("path_outside_project", core.resolve_inside, self.proj, "linkdir/new")
+
+    def test_symlink_inside_ok(self):
+        real = self.proj / "real.png"
+        real.write_bytes(fixtures.png_bytes())
+        (self.proj / "alias.png").symlink_to(real)
+        self.assertEqual(core.check_input_image(self.proj, "alias.png"), real)
+
+    def test_check_input_image(self):
+        for name, data in (("a.png", fixtures.png_bytes()), ("b.jpg", fixtures.jpeg_bytes()),
+                           ("c.webp", fixtures.webp_bytes())):
+            (self.proj / name).write_bytes(data)
+            self.assertEqual(core.check_input_image(self.proj, name), self.proj / name)
+        self.assertCode("input_not_found", core.check_input_image, self.proj, "missing.png")
+        (self.proj / "dir.png").mkdir()
+        self.assertCode("input_not_found", core.check_input_image, self.proj, "dir.png")
+        (self.proj / "fake.png").write_bytes(b"GIF89a not really")
+        self.assertCode("invalid_request", core.check_input_image, self.proj, "fake.png")
+
+    def test_image_mime(self):
+        self.assertEqual(core.image_mime(fixtures.png_bytes()), "image/png")
+        self.assertEqual(core.image_mime(fixtures.jpeg_bytes()), "image/jpeg")
+        self.assertEqual(core.image_mime(fixtures.webp_bytes()), "image/webp")
+        self.assertIsNone(core.image_mime(b"hello"))
+
+    def test_output_path_name(self):
+        now = datetime(2026, 11, 21, 9, 5, 7)
+        p = core.output_path(self.proj, None, "A red fox, jumping over the LAZY dog at dawn!", "png", now)
+        self.assertEqual(p.parent, self.proj)
+        self.assertTrue(p.name.startswith("20261121-090507-a-red-fox-jumping"), p.name)
+        self.assertTrue(p.name.endswith(".png"))
+        self.assertRegex(p.stem[16:], r"^[a-z0-9-]{1,40}$")
+        p = core.output_path(self.proj, "My Logo.png", "ignored", "webp", now)
+        self.assertEqual(p.name, "20261121-090507-my-logo.webp")
+        p = core.output_path(self.proj, "x" * 90, "ignored", "png", now)
+        self.assertEqual(len(p.stem), 16 + 40)
+        p = core.output_path(self.proj, "../../etc", "", "png", now)
+        self.assertEqual(p.parent, self.proj)
+        p = core.output_path(self.proj, None, "日本語", "png", now)
+        self.assertEqual(p.name, "20261121-090507-image.png")
+
+    def test_output_path_unique_same_second(self):
+        now = datetime(2026, 11, 21, 9, 5, 7)
+        first = core.output_path(self.proj, "fox", "p", "png", now)
+        core.write_new(first, b"one")
+        second = core.output_path(self.proj, "fox", "p", "png", now)
+        self.assertNotEqual(first, second)
+        self.assertEqual(second.name, "20261121-090507-fox-2.png")
+        core.write_new(second, b"two")
+        third = core.output_path(self.proj, "fox", "p", "png", now)
+        self.assertEqual(third.name, "20261121-090507-fox-3.png")
+        # A sidecar taking the name also counts as taken.
+        (self.proj / "20261121-090507-fox-3.png.json").write_text("{}")
+        self.assertEqual(core.output_path(self.proj, "fox", "p", "png", now).name, "20261121-090507-fox-4.png")
+        self.assertEqual(first.read_bytes(), b"one")
+        self.assertEqual(second.read_bytes(), b"two")
+
+    def test_write_new_never_overwrites(self):
+        p = self.proj / "deep" / "dir" / "img.png"
+        core.write_new(p, b"first")
+        with self.assertRaises(FileExistsError):
+            core.write_new(p, b"second")
+        self.assertEqual(p.read_bytes(), b"first")
+
+    def test_image_info(self):
+        self.assertEqual(core.image_info(fixtures.png_bytes(2, 3)), ("png", 2, 3))
+        self.assertEqual(core.image_info(fixtures.jpeg_bytes(5, 7)), ("jpeg", 5, 7))
+        for kind in ("VP8X", "VP8", "VP8L"):
+            self.assertEqual(core.image_info(fixtures.webp_bytes(9, 4, kind)), ("webp", 9, 4), kind)
+        self.assertEqual(core.image_info(b"nope"), ("unknown", 0, 0))
+
+    def test_sidecar(self):
+        img = self.proj / "a.png"
+        img.write_bytes(fixtures.png_bytes())
+        record = {"prompt": "a fox", "settings_sent": {"model": "m", "size": "1024x1024"},
+                  "usage": {"output_tokens": 439}, "cost_usd": 0.013,
+                  "response": {"data": [{"b64_json": "QUFBQQ=="}], "size": "1024x1024"},
+                  "inputs": ["data:image/png;base64,QUFBQQ==", "in.png"]}
+        side = core.write_sidecar(img, record)
+        self.assertEqual(side, self.proj / "a.png.json")
+        text = side.read_text()
+        saved = json.loads(text)
+        self.assertEqual(saved["prompt"], "a fox")
+        self.assertEqual(saved["settings_sent"]["size"], "1024x1024")
+        self.assertEqual(saved["usage"]["output_tokens"], 439)
+        self.assertEqual(saved["cost_usd"], 0.013)
+        self.assertNotIn("b64", text)
+        self.assertNotIn("QUFBQQ", text)
+        self.assertIn("in.png", saved["inputs"])
+        with self.assertRaises(FileExistsError):
+            core.write_sidecar(img, record)
+
+    def test_spend_totals(self):
+        data = self.root / "data"
+        self.assertEqual(core.spend_totals(data, "s1"), (0.0, 0.0))
+        core.append_spend(data, {"session": "s1", "cost_usd": 0.013})
+        core.append_spend(data, {"session": "s1", "cost_usd": 0.02})
+        core.append_spend(data, {"session": "s2", "cost_usd": 0.5})
+        with open(data / "spend.jsonl", "a") as f:
+            f.write("not json\n{\"session\": \"s1\"}\n")
+        session, total = core.spend_totals(data, "s1")
+        self.assertAlmostEqual(session, 0.033)
+        self.assertAlmostEqual(total, 0.533)
+        self.assertAlmostEqual(core.spend_totals(data, "s2")[0], 0.5)

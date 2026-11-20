@@ -4,9 +4,14 @@ No network and no MCP here, so all of it can be tested directly.
 """
 from __future__ import annotations
 
+import itertools
+import json
 import math
+import os
 import re
+import struct
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Mapping
 
@@ -268,3 +273,156 @@ def validate_request(*, size: str, background: str, output_format: str, n: int) 
     if not 655_360 <= w * h <= 8_294_400:
         raise _invalid(f"size {size}: total pixels must be between 655,360 and 8,294,400 "
                        f"(1024x1024 is fine; 512x512 is too small).")
+
+
+# ---------------------------------------------------------------- files
+
+def resolve_inside(project_dir: Path, path: str) -> Path:
+    """The real path (symlinks and .. resolved), refused unless it is inside the project."""
+    p = Path(path).expanduser()
+    if not p.is_absolute():
+        p = Path(project_dir) / p
+    real = Path(os.path.realpath(p))
+    root = Path(os.path.realpath(project_dir))
+    if real != root and not real.is_relative_to(root):
+        raise ImagesError("path_outside_project", f"{path} is outside the project folder {root}.",
+                          "Use a path inside the project. To edit an image from elsewhere, ask the user, then copy "
+                          "it into generated-images/inputs/ and pass the copy.")
+    return real
+
+
+def image_mime(data: bytes) -> str | None:
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+def check_input_image(project_dir: Path, path: str) -> Path:
+    real = resolve_inside(project_dir, path)
+    if not real.is_file():
+        raise ImagesError("input_not_found", f"{path} does not exist or is not a file.",
+                          "Check the path; paths may be relative to the project folder.")
+    with open(real, "rb") as f:
+        head = f.read(16)
+    if image_mime(head) is None:
+        raise _invalid(f"{path} is not a PNG, JPEG or WebP image.")
+    return real
+
+
+_IMAGE_EXT = re.compile(r"\.(png|jpe?g|webp|gif|svg)$", re.IGNORECASE)
+
+
+def slugify(text: str, limit: int = 40) -> str:
+    s = re.sub(r"[^a-z0-9]+", "-", _IMAGE_EXT.sub("", text.strip()).lower()).strip("-")
+    if len(s) > limit:
+        cut = s[:limit]
+        s = cut.rsplit("-", 1)[0] if "-" in cut[limit // 2:] else cut
+        s = s.strip("-")
+    return s or "image"
+
+
+def output_path(out_dir: Path, slug: str | None, prompt: str, ext: str, now: datetime) -> Path:
+    """`YYYYMMDD-HHMMSS-<slug>.<ext>`, with -2, -3... when the image or its sidecar name is taken."""
+    base = f"{now:%Y%m%d-%H%M%S}-{slugify(slug or prompt)}"
+    out_dir = Path(out_dir)
+    for i in itertools.count(1):
+        name = base if i == 1 else f"{base}-{i}"
+        p = out_dir / f"{name}.{ext}"
+        if not p.exists() and not p.with_name(p.name + ".json").exists():
+            return p
+    raise AssertionError("unreachable")
+
+
+def write_new(path: Path, data: bytes) -> None:
+    """Create the file; FileExistsError if it already exists. Never overwrites."""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "xb") as f:
+        f.write(data)
+
+
+def image_info(data: bytes) -> tuple[str, int, int]:
+    """(format, width, height) from PNG, JPEG or WebP headers; ("unknown", 0, 0) otherwise."""
+    try:
+        mime = image_mime(data)
+        if mime == "image/png" and data[12:16] == b"IHDR":
+            w, h = struct.unpack(">II", data[16:24])
+            return "png", w, h
+        if mime == "image/jpeg":
+            i = 2
+            while i + 9 < len(data):
+                if data[i] != 0xFF:
+                    i += 1
+                    continue
+                marker = data[i + 1]
+                if marker in (0xD8, 0x01) or 0xD0 <= marker <= 0xD7 or marker == 0xFF:
+                    i += 1 if marker == 0xFF else 2
+                    continue
+                (length,) = struct.unpack(">H", data[i + 2:i + 4])
+                if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+                    h, w = struct.unpack(">HH", data[i + 5:i + 9])
+                    return "jpeg", w, h
+                i += 2 + length
+        if mime == "image/webp":
+            kind = data[12:16]
+            if kind == b"VP8X":
+                return "webp", int.from_bytes(data[24:27], "little") + 1, int.from_bytes(data[27:30], "little") + 1
+            if kind == b"VP8 ":
+                w, h = struct.unpack("<HH", data[26:30])
+                return "webp", w & 0x3FFF, h & 0x3FFF
+            if kind == b"VP8L":
+                (bits,) = struct.unpack("<I", data[21:25])
+                return "webp", (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+    except struct.error:
+        pass
+    return "unknown", 0, 0
+
+
+def _clean(value):
+    """Drop base64 payloads (keys containing 'b64', data: URLs) from a record."""
+    if isinstance(value, dict):
+        return {k: _clean(v) for k, v in value.items() if "b64" not in str(k).lower()}
+    if isinstance(value, (list, tuple)):
+        return [_clean(v) for v in value]
+    if isinstance(value, str) and value.startswith("data:"):
+        return "[data url omitted]"
+    return value
+
+
+def write_sidecar(image_path: Path, record: dict) -> Path:
+    path = Path(image_path).with_name(Path(image_path).name + ".json")
+    write_new(path, (json.dumps(_clean(record), indent=2, ensure_ascii=False) + "\n").encode())
+    return path
+
+
+# ---------------------------------------------------------------- spend log
+
+def append_spend(data_dir: Path, record: dict) -> None:
+    Path(data_dir).mkdir(parents=True, exist_ok=True)
+    with open(Path(data_dir) / "spend.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps(_clean(record), ensure_ascii=False) + "\n")
+
+
+def spend_totals(data_dir: Path, session_id: str) -> tuple[float, float]:
+    """(this session's spend, all-time spend) in USD. Unreadable lines are skipped."""
+    session = total = 0.0
+    try:
+        f = open(Path(data_dir) / "spend.jsonl", encoding="utf-8")
+    except FileNotFoundError:
+        return 0.0, 0.0
+    with f:
+        for line in f:
+            try:
+                rec = json.loads(line)
+                cost = float(rec.get("cost_usd") or 0)
+            except (ValueError, AttributeError, TypeError):
+                continue
+            if not math.isfinite(cost):
+                continue
+            total += cost
+            if rec.get("session") == session_id:
+                session += cost
+    return session, total

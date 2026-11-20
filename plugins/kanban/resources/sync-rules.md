@@ -83,9 +83,14 @@ once.
   - Looks finished
   ```
 
-- Check the outcome before you call something open. The digest shows what the user asked and how the
-  session ended ("ended with"). When the ending says a thing was built, applied or checked, it is done:
-  write it as done, not as "the user asked for it".
+- Check the outcome before you call something open. In the digest, each request (`asked N:`) is
+  followed by how Claude's answer to it began (`→ ...`), and the session's last reply is under
+  `ended with:`. A long session does several things: read every `→` line. When it says a thing was
+  built, applied or checked, it is done: write it as done, never as "the user asked for it". A request
+  with no `→` line had no answer yet. `(N more requests)` means requests in the middle were left out.
+- A session marked "read again from the start" is one the user asked to sync again, because its card
+  is wrong. Rewrite that card's `summary`, `status` and `next_step` from the whole session, not from
+  the card's old text. Its log line replaces the old one for the same session.
 - `next_step` (at most 200): the one next thing to do, as an instruction. Take it from what the last
   session left open or what the user said they would do next. If nothing is open, write "". A `done`
   card may keep a next step for a small loose end ("merge the branch if it is still open").

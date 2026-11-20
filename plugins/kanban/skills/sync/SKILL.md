@@ -1,7 +1,7 @@
 ---
 name: sync
 description: Updates the user's kanban board from their Claude sessions - finds the sessions that are not on the board yet, puts each on the right card, and rewrites where the card stands and its next step. Use for /kanban:sync, "sync my board", "update the kanban", or when a session-start note says sessions are not on the board yet and the user says yes.
-argument-hint: "[unattended]"
+argument-hint: "[unattended | again <session id>]"
 ---
 
 # Sync
@@ -21,6 +21,11 @@ sessions, what to write and the format of the decision.
 
 With the argument `unattended` (the daily task), ask nothing: follow the "Unattended" section.
 
+With the argument `again <session id>` (a card that sync wrote wrong): in step 3 add
+`--again <session id>` to `collect`. That session is read again from its start, also when it is synced.
+Rewrite its card from the whole session. The session id is in the card's session list on the board
+(the first 8 characters are enough).
+
 ## Steps
 
 1. Run `kanban-tool begin --data "<data>"`. It prints the board URL and the folder for step 2.
@@ -31,7 +36,7 @@ With the argument `unattended` (the daily task), ask nothing: follow the "Unatte
    results: they show the `version` of each document. A collection with more than 100 documents needs
    `query.limit: 1000`.
 
-3. Run `kanban-tool collect --data "<data>"`.
+3. Run `kanban-tool collect --data "<data>"` (with `--again <id>` when asked, see above).
    - "Nothing new": the tool has closed the sync and brought the local copy in line with the board. Do
      the one board write it prints (`last_sync` in `meta/board`, with the version from step 2), tell the
      user the board is up to date, and stop.

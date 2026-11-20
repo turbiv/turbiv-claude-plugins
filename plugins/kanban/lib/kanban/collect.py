@@ -100,8 +100,10 @@ def excluded(folders, patterns):
     return False
 
 
-def _candidates(events, projects_dir, cutoff):
-    """session id -> {path, source}. Hook lines first, then the folder scan."""
+def _candidates(events, projects_dir, cutoff, again=()):
+    """session id -> {path, source}. Hook lines first, then the folder scan.
+    `again`: session ids (or their first 6 or more characters) to take whatever
+    their age."""
     found = {}
     for e in events:
         sid = tpath = None
@@ -134,7 +136,7 @@ def _candidates(events, projects_dir, cutoff):
             recent = f.stat().st_mtime >= cutoff
         except OSError:
             continue
-        if recent and f.stem not in found:
+        if (recent or any(f.stem.startswith(a) for a in again)) and f.stem not in found:
             found[f.stem] = {"path": f, "source": "scan"}
     for sid, c in found.items():
         if c["path"] is None:
@@ -154,13 +156,16 @@ def _on_cards(cards):
     return out
 
 
-def run(data, synced, projects_dir, scan_days, now, max_sessions=MAX_SESSIONS, cards=None):
+def run(data, synced, projects_dir, scan_days, now, max_sessions=MAX_SESSIONS, cards=None, again=()):
     """Build the digest of everything that is new. Writes work/digest.json and
     work/digest.md and returns the digest object.
 
     `cards` is the saved board. A session that a card already names is treated
     as synced even when `meta/synced` does not have it (a sync can die after
-    the cards were written and before the record was)."""
+    the cards were written and before the record was).
+
+    `again`: sessions to read again from their start, also when they are synced
+    and have nothing new. For a card that sync wrote wrong."""
     cfg = data.config()
     patterns = cfg.get("exclude") if isinstance(cfg.get("exclude"), list) else []
     synced = synced if isinstance(synced, dict) else {}
@@ -179,12 +184,18 @@ def run(data, synced, projects_dir, scan_days, now, max_sessions=MAX_SESSIONS, c
     skipped = {"synced": 0, "excluded": 0, "no_prompt": 0, "sync_session": 0, "scheduled": 0, "missing": 0,
                "over_cap": 0}
     sessions, roots = [], {}
-    for sid, c in _candidates(events, Path(projects_dir), cutoff).items():
+    again = tuple(a for a in again if isinstance(a, str) and len(a) >= 6)
+    found_again = set()
+    for sid, c in _candidates(events, Path(projects_dir), cutoff, again).items():
         if c["path"] is None:
             skipped["missing"] += 1
             continue
         prev = synced.get(sid) if isinstance(synced.get(sid), dict) else on_cards.get(sid)
-        d = transcript.digest(c["path"], since=prev.get("end") if prev else None)
+        is_again = any(sid.startswith(a) for a in again)
+        if is_again:
+            found_again.add(sid)
+        d = transcript.digest(c["path"], since=prev.get("end") if prev and not is_again else None)
+        d["again"] = is_again
         if d["sync_session"]:
             skipped["sync_session"] += 1
             continue
@@ -192,7 +203,7 @@ def run(data, synced, projects_dir, scan_days, now, max_sessions=MAX_SESSIONS, c
             # A run of some other scheduled task. Nobody "left off" there.
             skipped["scheduled"] += 1
             continue
-        if prev and d["end"] <= str(prev.get("end") or ""):
+        if prev and not is_again and d["end"] <= str(prev.get("end") or ""):
             skipped["synced"] += 1
             continue
         root = None
@@ -223,7 +234,8 @@ def run(data, synced, projects_dir, scan_days, now, max_sessions=MAX_SESSIONS, c
                 d["end"] = d["start"] = iso(now)
         sessions.append(d)
 
-    sessions.sort(key=lambda s: s["end"], reverse=True)
+    # Sessions read again go first, so the cap never pushes them to the next sync.
+    sessions.sort(key=lambda s: (bool(s.get("again")), s["end"]), reverse=True)
     carry = sessions[max_sessions:]
     sessions = sessions[:max_sessions]
     skipped["over_cap"] = len(carry)
@@ -236,6 +248,7 @@ def run(data, synced, projects_dir, scan_days, now, max_sessions=MAX_SESSIONS, c
     digest = {
         "generated": iso(now), "machine": cfg.get("machine") or "", "first_sync": first_sync,
         "since": since, "sessions": sessions, "repos": repos, "skipped": skipped,
+        "again_missing": [a for a in again if not any(sid.startswith(a) for sid in found_again)],
     }
     work = data.clear(data.work)
     data.write_json("work/digest.json", digest)
@@ -248,11 +261,15 @@ def run(data, synced, projects_dir, scan_days, now, max_sessions=MAX_SESSIONS, c
     return digest
 
 
+STEPS_HEAD_SHOWN = transcript.STEPS_HEAD
+
+
 def render(digest):
     """The digest as compact text. This is what Claude reads."""
     sessions = digest["sessions"]
     compact = len(sessions) > COMPACT_ABOVE
     p_max, r_max = (200, 500) if compact else (transcript.PROMPT_MAX, transcript.REPLY_MAX)
+    o_max = 160 if compact else transcript.OUTCOME_MAX
     cut = transcript.cut
     out = ["# Sessions that are not on the board yet: %d" % len(sessions), ""]
     sk = ", ".join("%s %d" % (k.replace("_", " "), v) for k, v in sorted(digest["skipped"].items()) if v)
@@ -288,10 +305,23 @@ def render(digest):
             continue
         if s["turns"] == 0 and s["known_cards"]:
             out.append("(no new prompt: the turn that was running at the last sync went on)")
-        for i, p in enumerate(s["prompts"]):
-            out.append("asked %d: %s" % (i + 1, cut(p, p_max)))
-        if s["turns"] > len(s["prompts"]) and s["last_prompt"]:
-            out.append("asked last: " + cut(s["last_prompt"], p_max))
+        if s.get("again"):
+            out.append("(read again from the start: rewrite the card's summary, status and next step from all of it)")
+        steps = s.get("steps") or []
+        if steps:
+            # Each request with how its reply began: "→" says whether it was done.
+            for j, st in enumerate(steps):
+                if j == STEPS_HEAD_SHOWN and s.get("steps_left_out"):
+                    out.append("(%d more requests)" % s["steps_left_out"])
+                out.append("asked %d: %s" % (st["n"], cut(st["ask"], p_max)))
+                last = j == len(steps) - 1
+                if st["outcome"] and not (last and s["last_reply"]):
+                    out.append("  → " + cut(st["outcome"], o_max))
+        else:
+            for i, p in enumerate(s["prompts"]):
+                out.append("asked %d: %s" % (i + 1, cut(p, p_max)))
+            if s["turns"] > len(s["prompts"]) and s["last_prompt"]:
+                out.append("asked last: " + cut(s["last_prompt"], p_max))
         if s["last_reply"]:
             out.append("ended with: " + cut(s["last_reply"], r_max))
         if s["files"]:

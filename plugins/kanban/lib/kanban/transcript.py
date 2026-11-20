@@ -13,6 +13,11 @@ PROMPT_MAX = 300
 REPLY_MAX = 1200
 TITLE_MAX = 60
 MAX_PROMPTS = 3
+# Each request with how its reply began. A long session does several things, and
+# only the reply says whether each one was done. Kept: the first STEPS_HEAD and
+# the last STEPS_TAIL requests.
+OUTCOME_MAX = 280
+STEPS_HEAD, STEPS_TAIL = 3, 9
 MAX_FOLDERS = 5
 MAX_FILES = 15
 EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
@@ -109,12 +114,14 @@ def digest(path, since=None):
     path = Path(path)
     out = {
         "id": path.stem, "title": "", "start": "", "end": "", "folders": [], "branch": "",
-        "prompts": [], "last_prompt": "", "last_reply": "", "turns": 0,
+        "prompts": [], "last_prompt": "", "last_reply": "", "turns": 0, "steps": [], "steps_left_out": 0,
         "files": [], "files_total": 0, "unparsed": False, "sync_session": False, "scheduled": False,
     }
     since = norm_ts(since) if since else ""
     custom_title = ai_title = summary = ""
     human, other, files = [], [], []
+    # [request, how its reply began] per prompt, for human and other prompts apart.
+    steps_h, steps_o, cur = [], [], None
     messages = replies = 0
     first_text = None
     size = 0
@@ -168,12 +175,17 @@ def digest(path, since=None):
                     first_text = text
                 if pk and late:
                     (human if pk == "human" else other).append(_readable(text))
+                    cur = steps_h if pk == "human" else steps_o
+                    cur.append([_readable(text), ""])
             else:
                 text = _text_of(content)
                 if text.strip():
                     replies += 1
                     if late:
                         out["last_reply"] = cut(text, REPLY_MAX)
+                        if cur:
+                            # The last text of the turn is its answer: it says what was done.
+                            cur[-1][1] = text
                 if late and isinstance(content, list):
                     for block in content:
                         if (isinstance(block, dict) and block.get("type") == "tool_use"
@@ -187,6 +199,11 @@ def digest(path, since=None):
     out["prompts"] = [cut(p, PROMPT_MAX) for p in prompts[:MAX_PROMPTS]]
     out["last_prompt"] = cut(prompts[-1], PROMPT_MAX) if prompts else ""
     out["turns"] = len(prompts)
+    steps = steps_h if human else steps_o[:1]
+    keep = steps if len(steps) <= STEPS_HEAD + STEPS_TAIL else steps[:STEPS_HEAD] + steps[-STEPS_TAIL:]
+    out["steps"] = [{"n": (i + 1 if i < STEPS_HEAD or len(steps) == len(keep) else len(steps) - len(keep) + i + 1),
+                     "ask": cut(a, PROMPT_MAX), "outcome": cut(o, OUTCOME_MAX)} for i, (a, o) in enumerate(keep)]
+    out["steps_left_out"] = len(steps) - len(keep)
     out["files_total"] = len(files)
     out["files"] = files[:MAX_FILES]
     out["title"] = cut(custom_title or ai_title or summary or (prompts[0] if prompts else ""), TITLE_MAX)

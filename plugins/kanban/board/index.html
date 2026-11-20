@@ -255,6 +255,62 @@ a { color: var(--accent); }
   var el = function (id) { return document.getElementById(id); };
   var queues = {};
 
+  // ---- seen:begin
+  // "What changed since you last looked": the board now against the viewer's
+  // copy of the board as they last saw it. Pure functions, no DOM; the tests
+  // cut this block out and run it in Node (tests/test_board_seen.py).
+  // A copy entry: t title, s status, h and n hashes of summary and next step,
+  // x the id of the newest session. A null entry is a card the viewer removed.
+  function fnv(s) {
+    var h = 0x811c9dc5;
+    s = typeof s === "string" ? s : "";
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return ("0000000" + (h >>> 0).toString(16)).slice(-8);
+  }
+  function entryOf(c) {
+    var t = function (v) { return typeof v === "string" ? v : ""; };
+    var first = Array.isArray(c.sessions) && c.sessions[0] && typeof c.sessions[0] === "object" ? c.sessions[0] : {};
+    return { t: t(c.title), s: t(c.status), h: fnv(c.summary), n: fnv(c.next_step), x: t(first.id) };
+  }
+  function snapshotOf(cards) {
+    var out = {};
+    cards.forEach(function (c) { out[c.id] = entryOf(c); });
+    return out;
+  }
+  function diffBoard(base, cards) {
+    var d = { byId: {}, removed: [], counts: { "new": 0, moved: 0, renamed: 0, updated: 0, removed: 0 }, total: 0 };
+    if (!base || typeof base !== "object") return d;
+    var here = {};
+    cards.forEach(function (c) {
+      here[c.id] = true;
+      var was = base[c.id], now = entryOf(c), kinds = [];
+      if (!was || typeof was !== "object") kinds.push("new");
+      else {
+        if (was.s !== now.s) kinds.push("moved");
+        if (was.t !== now.t) kinds.push("renamed");
+        if (was.h !== now.h || was.n !== now.n || was.x !== now.x) kinds.push("updated");
+      }
+      if (!kinds.length) return;
+      d.byId[c.id] = { kinds: kinds, from: kinds[0] === "new" ? "" : String(was.s || "") };
+      kinds.forEach(function (k) { d.counts[k]++; });
+      d.total++;
+    });
+    Object.keys(base).forEach(function (id) {
+      var was = base[id];
+      if (here[id] || !was || typeof was !== "object") return;
+      d.removed.push({ id: id, title: typeof was.t === "string" ? was.t : "" });
+      d.counts.removed++;
+      d.total++;
+    });
+    return d;
+  }
+  function patchBase(base, id, patch) {
+    if (patch === null) { base[id] = null; return; }
+    var old = base[id] && typeof base[id] === "object" ? base[id] : {};
+    base[id] = Object.assign({}, old, patch);
+  }
+  // ---- seen:end
+
   // ---------- small helpers ----------
   function h(tag, attrs, kids) {
     var n = document.createElement(tag);

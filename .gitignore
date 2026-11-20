@@ -5,3 +5,6 @@ plugins/*/.claude-plugin/types/
 
 # flow work items are local, never committed
 work-items/
+
+# Python caches (tests)
+__pycache__/

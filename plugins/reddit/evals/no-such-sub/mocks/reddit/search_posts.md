@@ -1,0 +1,4 @@
+---
+type: fixed
+---
+{"source": "Source: Arctic Shift, a third-party Reddit archive, not live Reddit. Scores and comment counts are one snapshot taken about 1.5-2 days after posting and never updated (score_status: 'snapshot'), or the first value seen at posting time ('initial', unreliable). num_comments is an estimate from that snapshot. The archive may include content later deleted on Reddit, and excludes private and quarantined subreddits, posts AutoModerator removed at once, and users who opted out.", "notes": ["r/thisdoesnotexist12345: the archive has no posts at all from this subreddit. It may not exist, or it may be private, quarantined or banned (the archive excludes those), or never have had a post. Check the spelling of the name."], "subreddits": ["thisdoesnotexist12345"], "query": "{{input.query}}", "sort": "new", "window": "the start of the archive to now", "order": "newest first (the archive's own order)", "items": [], "count": 0}

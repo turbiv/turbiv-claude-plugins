@@ -147,6 +147,7 @@ async def test_trending_samples_big_subreddits_and_compares_by_estimate(call, fa
     assert len(archive_requests(fake_archive)) <= 9
     assert r["requests_used"] == len(fake_archive.requests)
     assert any("sampled" in n for n in r["notes"])
+    assert r["counts"].startswith("SAMPLE")  # a sampled count is called a sample (Session 5 review)
 
 
 async def test_trending_without_subreddits_is_refused(call, fake_archive):
@@ -264,6 +265,8 @@ async def test_count_mentions_sampled_is_bounded_and_labelled(call, fake_archive
     assert len(sent) <= 20 and r["requests_used"] == len(fake_archive.requests)
     assert r["scan_truncated"] is True
     assert any("TRUNCATED SCAN" in n for n in r["notes"])
+    assert r["counts"].startswith("SAMPLE")
+    assert all("created_utc" in ex for t in r["terms"] for ex in t["examples"] if ex.get("title"))
     modes = {c["stream"]: c["mode"] for c in r["coverage"]}
     assert modes["r/MechanicalKeyboards comments"] == "sampled"
     for c in r["coverage"]:

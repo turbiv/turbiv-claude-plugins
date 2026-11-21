@@ -938,6 +938,10 @@ def register(mcp: Any, ctx: ServerContext) -> None:
             items=items,
             notes=notes,
             method="recent comment activity, not Reddit's hot",
+            counts=(
+                "SAMPLE: new_comments_seen counts only the sampled comments; new_comments_estimated "
+                "scales them up" if sampled else "every archived comment of the window was counted"
+            ),
             window=f"last {hours} h: {iso(after)} to {iso(now)}",
             subreddits=[f"r/{s}" for s in subs],
             coverage=[s.describe() for s in scans],
@@ -1097,6 +1101,11 @@ def register(mcp: Any, ctx: ServerContext) -> None:
             subreddits=[f"r/{s}" for s in subs],
             searched=where,
             scan_truncated=sampled or bool(failed),
+            counts=(
+                "SAMPLE counts: mentions, threads and authors count only the sampled part of the window; "
+                "estimated_mentions_in_window scales them up (rough)" if sampled
+                else "full counts over every archived item listed in the window"
+            ),
             items_scanned=scanned,
             coverage=[s.describe() for _, s in scans],
             requests_used=0,
@@ -1156,6 +1165,7 @@ class _TermStats:
             examples.append({k: v for k, v in {
                 "thread": permalink_post(sub, t),
                 "title": meta.get("title"),
+                "created_utc": meta.get("created_utc"),
                 "created": iso(meta.get("created_utc")),
                 "mentions_in_thread": self.threads[t],
                 "example": link,

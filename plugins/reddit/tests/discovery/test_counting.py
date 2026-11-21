@@ -218,7 +218,10 @@ async def test_count_mentions_defaults_to_three_months(call, fake_archive, sim):
     r = await call("count_mentions", {"subreddits": ["a", "b"], "terms": ["x"]})
     after = r["window_epoch"]["after"]
     assert 89 * DAY <= NOW - after <= 92 * DAY
-    assert "2026-08-20" in r["window"]
+    # The tool reads the wall clock here, so derive the expected date from `after`, not a fixed string.
+    from datetime import datetime, timezone
+
+    assert datetime.fromtimestamp(after, timezone.utc).strftime("%Y-%m-%d") in r["window"]
     assert sorted(set(archive_requests(fake_archive))) == ["comments/search", "posts/search"]
     assert {fake_archive.params(i)["subreddit"] for i in range(4) if fake_archive.paths()[i] != "STATUS"} == {"a", "b"}
 

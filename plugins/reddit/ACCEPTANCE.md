@@ -78,17 +78,27 @@ Session 1 runs first. Sessions 2, 3 and 4 can run in parallel after it, because 
 
 ### Session 2: posts, listings and search
 
-- [ ] `list_posts(subreddits[], sort, time | after/before, limit)`:
+- [x] `list_posts(subreddits[], sort, time | after/before, limit)`:
   - `new` and `old` are native. (T1)
   - `top`, `comments` and `controversial` are computed on the client over a bounded window. The output states the window and the scan size. (T2, T3)
-- [ ] `search_posts(subreddits[], query, sort, time | after/before, limit)`:
+  - Done: the `scan` block gives the window, posts scanned, pages, `complete`/`truncated` and an estimate of the posts in the window.
+    - When the window is bigger than `max_pages` (default 10, at most 30), the scan is a labelled sample: the newest page, then the newest page of equal slices of the rest of the window.
+    - `controversial` is estimated from `score` and `upvote_ratio`, so it scans full objects.
+    - T3: `top`/`comments`/`controversial` over a window that is all younger than 36 h is refused with "scores not final". In longer windows, posts under 36 h are left out of the ranking, and the result says how many.
+    - A subreddit with no posts costs one more request, to tell "not in the archive at all" apart from "nothing in this window".
+- [x] `search_posts(subreddits[], query, sort, time | after/before, limit)`:
   - It needs at least 1 subreddit or author. (T5)
   - It maps the Reddit operators `author:`, `title:`, `selftext:`, `flair:`, `nsfw:`, `url:`, `site:`, `self:` and `NOT`. (T7)
   - It sends the archive one keyword or one quoted phrase per field. It applies AND, OR and `-exclude` locally.
     Reason: in the probes only a quoted phrase ever worked on posts ([`docs/probes.md`](docs/probes.md), Q1 and Q6).
   - When the archive returns 422, it falls back to a labelled local scan. (T6)
-- [ ] Reddit's time filters `hour/day/week/month/year/all` and custom date ranges become absolute epoch seconds. "Last 3 months" works. (T8)
-- [ ] `deep_search(concepts[][], subreddits[], after?, before?, in: posts|comments|both, max_requests=30)` finds older and less exact matches:
+  - Done, with one refinement: the archive gets **one keyword in total** (the most specific single term), not one per field, because each extra keyword field makes the query heavier.
+    - `flair:` goes to `link_flair_text`, `nsfw:` to `over_18`, `spoiler:` to `spoiler`, `author:` to `author`. `url:` goes to the `url` prefix only when it starts with `http`; otherwise it is a local substring match.
+    - `site:`, `self:`, OR groups, `-`/`NOT` and the other words are matched locally on tokens, so case, hyphens and punctuation do not matter.
+    - Each scope reports its `method`: archive keyword search, or "local scan (T6)" with `partial` and the posts scanned.
+- [x] Reddit's time filters `hour/day/week/month/year/all` and custom date ranges become absolute epoch seconds. "Last 3 months" works. (T8)
+  - Done through the shared `resolve_window`. `before="2025"` means the end of 2025.
+- [x] `deep_search(concepts[][], subreddits[], after?, before?, in: posts|comments|both, max_requests=30)` finds older and less exact matches:
   - `concepts` is AND-of-OR groups, for example `[["9900k","i9-9900k","9900kf"], ["power limit","PL1","PL2","undervolt","underclock","TDP"]]`. Claude writes the groups.
   - Server step:
     - Send the most specific term as `title`, then as `query` (title + selftext).
@@ -102,8 +112,21 @@ Session 1 runs first. Sessions 2, 3 and 4 can run in parallel after it, because 
     - Allow typos (fuzzy ratio ≥ 85).
     - Rank by concept coverage first, then by comment count.
   - Output: the top candidates, each with "matched: …". A coverage report lists the windows scanned, the windows that failed, the requests used, and whether the search was truncated.
-- [ ] Results from several subreddits are merged and de-duplicated by `id`.
-- [ ] `get_posts(ids_or_urls[])` returns full posts. It accepts up to 500 IDs, and splits larger inputs.
+  - Done. Details and refinements:
+    - The subreddits share the budget round robin. A subreddit's `query` walk starts when its `title` walk ends.
+    - A window is not halved below 1 day. A window that still fails there is skipped and listed in `windows_failed`. After 3 skipped windows in a row, the step gives up.
+    - The comment step sends the anchor group's terms joined with `OR`. After two 422s it falls back to the single most specific term, because comment search syntax is not probed yet.
+    - Model names go to the archive by their 3+-digit token (`i9-9900K` is sent as `9900k`). Fuzzy matching applies only to words of 5+ letters with no digits, so `9700k` never matches `9900k`. The matching uses `difflib` from the standard library, because adding `rapidfuzz` would change the shared `pyproject.toml`.
+    - **Ranking refinement:** concept coverage first, then how many groups matched in the **title**, then the comment count. Reason: `num_comments` is a frozen early snapshot (`wi7uhk` shows 2, but has 22 archived comments). Without this tie-break, a thread that names both concepts in its title ranks below busy threads that mention one concept in the body.
+    - Every distinct term of the anchor group is walked in turn: titles first, then title + selftext.
+    - **Fast-422 refinement:** the pause grows from 10 s to 20, 40 and at most 60 s while fast 422s go on, and
+      resets after a success. The live 422s came in bursts. After 240 s of waiting, the call stops and says the
+      archive is busy.
+    - A truncated result gives each unfinished step's `resume_before` and says how to continue per subreddit.
+    - Live measurement: [`docs/deep-search.md`](docs/deep-search.md).
+- [x] Results from several subreddits are merged and de-duplicated by `id`.
+- [x] `get_posts(ids_or_urls[])` returns full posts. It accepts up to 500 IDs, and splits larger inputs.
+  - Done: up to 2,000 IDs or URLs per call, sent 500 at a time, as full objects (`_meta`, `upvote_ratio`). `text_chars` goes up to 15,000 for the full text (O6). Unknown IDs are listed in `not_found`, and share links get a "resolve it first" note.
 
 ### Session 3: comments
 

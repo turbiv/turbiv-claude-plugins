@@ -65,20 +65,23 @@ The archive's keyword search often refuses queries when it is busy (fast HTTP 42
 retries those itself, and they do not use up its budget. An old thread is reached by walking back in time, so
 depth matters more than breadth.
 
-1. Call `deep_search` with **1-2 subreddits per call**, the most likely first, `in: "posts"` and
-   **`max_requests: 60`**. Write 2 concept groups: the subject with its spellings and model numbers, and the
-   topic words. Example for "power limits on an i9 9900K":
-   `concepts=[["9900k","i9-9900k","9900kf"],["power limit","PL1","PL2","undervolt","underclock","TDP"]]`,
-   `subreddits=["buildapc","intel"]`, `max_requests=60`.
+1. Call `deep_search` with **1-2 subreddits per call**, `in: "posts"` and **`max_requests: 60`**.
+   - Put the **largest** fitting community first. A general help subreddit (for PC hardware r/buildapc, for
+     tech problems r/techsupport) holds many more threads than a brand or enthusiast one. Check posts per day
+     with `find_subreddits` if you are not sure.
+   - Write 2 concept groups: the subject with its spellings and model numbers, and the topic words. Example
+     for "that thread about coil whine on an RTX 3080":
+     `concepts=[["3080","rtx 3080","3080 ti"],["coil whine","buzzing","whine","noise"]]`,
+     `subreddits=["buildapc","nvidia"]`, `max_requests=60`.
 2. If the result has a **`next_call`** (it is truncated or stopped early), call `deep_search` again with
    exactly those arguments. They continue the subreddit that is furthest behind, from where it stopped.
-   Repeat while a result has `next_call`, up to 3 calls in all. Do this even when you already have some
-   candidates, and before any web search: the thread asked about may be older.
+   Repeat while a result has `next_call`, up to 3 calls for these subreddits. Do this even when you already
+   have some candidates, and before any web search: the thread asked about may be older.
 3. If the search is still cut short or empty and you have a web search tool, search the web for candidate
-   Reddit threads (for example `reddit buildapc i9 9900K power limit underclock`). Take any reddit.com thread
-   URLs from the results and read them with `get_thread` (or `get_posts` for several). Claude's web search
-   often returns no reddit.com links at all; then rely on the archive and say what was searched.
-4. Then search another 1-2 subreddits only if needed.
+   Reddit threads (for example `reddit buildapc rtx 3080 coil whine`). Take any reddit.com thread URLs from
+   the results and read them with `get_thread` (or `get_posts` for several). Claude's web search often
+   returns no reddit.com links at all; then rely on the archive and say what was searched.
+4. If the thread is still not found, run steps 1-2 for the next 1-2 fitting subreddits.
 5. In the answer, cite the threads the plugin returned, and say how far back the search reached.
 
 ## Answer shape

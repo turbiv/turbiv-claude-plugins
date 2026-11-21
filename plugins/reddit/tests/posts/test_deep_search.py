@@ -95,21 +95,26 @@ async def test_fast_422_waits_10s_and_retries_the_same_window(client, db, fake_a
     assert d["coverage"]["windows_failed"] == []
 
 
-async def test_second_fast_422_halves_the_window(client, db, fake_archive):
+async def test_fast_422s_retry_the_same_window_and_do_not_use_the_budget(client, db, fake_archive):
+    """A fast 422 is load shedding: halving does not help (docs/deep-search.md), so the same
+    window is retried after a pause, and the refusal does not use up max_requests."""
     db.add(post("hit", title="9900k power limit", age_days=10))
     calls = {"n": 0}
 
     def fail(p):
-        if p.get("title") and calls["n"] < 2:
+        if p.get("title") and calls["n"] < 4:
             calls["n"] += 1
             return (422, {"error": "Timeout. Maybe slow down a bit"})
         return None
 
     db.fail = fail
-    await deep(client, after="2020-01-01")
+    d = (await deep(client, after="2020-01-01", max_requests=2)).data
     titles = [p for p in sent(fake_archive) if "title" in p]
-    full = int(titles[0]["before"]) - int(titles[0]["after"])
-    assert int(titles[2]["before"]) - int(titles[2]["after"]) == full // 2
+    assert len({(t["after"], t["before"]) for t in titles[:5]}) == 1  # never halved
+    assert d["candidates"][0]["id"] == "hit"  # 4 refusals, and the budget of 2 still got a page
+    cov = d["coverage"]
+    assert cov["fast_422s_not_counted"] == 4
+    assert cov["counted_against_max_requests"] <= 2 + 1  # plus the status check
 
 
 async def test_fast_422_waits_grow_and_reset(client, db, fake_archive, fake_time):
@@ -155,7 +160,8 @@ async def test_always_failing_archive_stays_in_budget_and_reports(client, db, fa
     assert cov["requests_used"] <= 12
     assert d["candidates"] == []
     assert any("web search" in n for n in d["notes"])
-    assert cov["seconds_waited_after_422"] <= 240 + 60
+    assert cov["seconds_waited_after_422"] <= 360 + 60  # MAX_TOTAL_WAIT, then the call stops
+    assert cov["fast_422s_not_counted"] >= 1 and cov["counted_against_max_requests"] <= 12
     assert any(n.startswith("stopped early") for n in d["notes"])
 
 

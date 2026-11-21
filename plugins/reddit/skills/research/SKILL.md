@@ -61,22 +61,25 @@ archive value). `archive_status` checks freshness and outages.
 
 ## Finding one specific or old thread
 
-The archive's keyword search often refuses queries when it is busy (fast HTTP 422). So:
+The archive's keyword search often refuses queries when it is busy (fast HTTP 422). `deep_search` waits and
+retries those itself, and they do not use up its budget. An old thread is reached by walking back in time, so
+depth matters more than breadth.
 
-1. Call `deep_search` with **1-2 subreddits per call**, the most likely first, and
-   `in: "posts"`. Write 2 concept groups: the subject with its spellings and model numbers, and
-   the topic words. Example for "power limits on an i9 9900K":
-   `concepts=[["9900k","i9-9900k","9900kf"],["power limit","PL1","PL2","undervolt","TDP"]]`,
-   `subreddits=["buildapc","intel"]`.
-2. If the result is **truncated**, call `deep_search` again with the same concepts, one
-   subreddit, and `before` set to the `before` it gives for that subreddit
-   (`coverage.continue_with.before` or the note's `before=`). Do this at most twice.
-3. If the search is **still truncated, empty, or stopped because the archive is busy**, and you
-   have a web search tool, search the web for candidate Reddit threads (for example
-   `site:reddit.com i9 9900K power limit PL1 PL2`). Take the reddit.com thread URLs from the
-   results and read each promising one with `get_thread` (or `get_posts` for several). Cite what
-   the plugin returned, not the web snippet.
+1. Call `deep_search` with **1-2 subreddits per call**, the most likely first, `in: "posts"` and
+   **`max_requests: 60`**. Write 2 concept groups: the subject with its spellings and model numbers, and the
+   topic words. Example for "power limits on an i9 9900K":
+   `concepts=[["9900k","i9-9900k","9900kf"],["power limit","PL1","PL2","undervolt","underclock","TDP"]]`,
+   `subreddits=["buildapc","intel"]`, `max_requests=60`.
+2. If the result is **truncated** or **stopped early**, call `deep_search` again with the same concepts and
+   subreddits and `before` set to `coverage.continue_with.before` (or the `before=` in the note). Repeat until
+   the search is not truncated or you have made 3 calls. Do this even when you already have some candidates:
+   the thread asked about may be older.
+3. If the search is still cut short or empty and you have a web search tool, search the web for candidate
+   Reddit threads (for example `reddit buildapc i9 9900K power limit underclock`). Take any reddit.com thread
+   URLs from the results and read them with `get_thread` (or `get_posts` for several). Claude's web search
+   often returns no reddit.com links at all; then rely on the archive and say what was searched.
 4. Then search another 1-2 subreddits only if needed.
+5. In the answer, cite the threads the plugin returned, and say how far back the search reached.
 
 ## Answer shape
 

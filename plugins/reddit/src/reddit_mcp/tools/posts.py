@@ -77,7 +77,7 @@ LIST_TEXT_CHARS = 300
 # deep_search
 FAST_422_WAIT = 10.0  # docs/probes.md, Q7
 MAX_422_WAIT = 60.0
-MAX_TOTAL_WAIT = 240.0  # stop a deep_search that has waited this long on a busy archive  # the wait doubles after each fast 422 in a row (docs/deep-search.md)
+MAX_TOTAL_WAIT = 360.0  # stop a deep_search that has waited this long on a busy archive  # the wait doubles after each fast 422 in a row (docs/deep-search.md)
 MIN_WINDOW = 86400  # do not halve a window below one day
 MAX_FAILED_WINDOWS = 3  # skipped windows in a row before a step gives up
 FUZZY_RATIO = 0.85
@@ -830,6 +830,7 @@ class DeepState:
     cache_hits: int = 0
     wait: float = FAST_422_WAIT  # pause after the next fast 422; doubles while they continue
     waited: float = 0.0
+    fast_422s: int = 0  # load-shedding refusals: bounded by MAX_TOTAL_WAIT, not by max_requests
 
 
 def _anchor_terms(concepts: list[list[str]]) -> tuple[int, list[str]]:
@@ -854,9 +855,11 @@ def _anchor_terms(concepts: list[list[str]]) -> tuple[int, list[str]]:
 
 
 async def _deep_step(client: ArcticShiftClient, st: Step, state: DeepState, now: float) -> None:
-    """One request for `st`, with the 422 rules from docs/probes.md, Q7:
-    fast 422 -> wait 10 s and retry the same window once; a second fast 422 or a slow 422 ->
-    halve the window; a window at the one-day floor that still fails is skipped and logged."""
+    """One request for `st`, with the 422 rules (docs/probes.md, Q7; docs/deep-search.md):
+    fast 422 (load shedding) -> wait (10 s, growing to 60 s while they go on) and retry the same
+    window: halving does not change the odds of a fast 422, and smaller windows cost more pages.
+    A slow 422 (a real timeout) -> halve the window; a window at the one-day floor that still
+    fails is skipped and logged."""
     st.status = "active"
     win_lo = st.lo if st.span is None else max(st.lo, st.hi - st.span)
     params = {"subreddit": st.sub, st.kind: st.value, "sort": "desc", "limit": PAGE,
@@ -867,14 +870,20 @@ async def _deep_step(client: ArcticShiftClient, st: Step, state: DeepState, now:
         resp = await client.get(st.path, params, fields=fields, retry_422=0)
     except QueryTooHeavy as e:
         if e.fast:
-            # The archive sheds load in bursts of about 30-60 s: pause longer each time, so
-            # fewer requests of the budget go into the burst.
+            # The archive sheds load in bursts of about 30-60 s: pause longer each time and retry
+            # the same window. A fast refusal costs the archive almost nothing, so it does not use
+            # up max_requests; MAX_TOTAL_WAIT bounds how many there can be.
+            state.fast_422s += 1
             await _sleep(client, state.wait)
             state.waited += state.wait
             state.wait = min(state.wait * 2, MAX_422_WAIT)
-            if not st.fast_retry:
-                st.fast_retry = True
+            if st.kind == "body" and " OR " in st.value and st.fast_retry:
+                # The OR form was refused twice: fall back to the single most specific term.
+                st.fast_retry = False
+                st.fallback_from, st.value = st.label(), st.value.split(" OR ")[0]
                 return
+            st.fast_retry = True
+            return
         st.fast_retry = False
         if st.kind == "body" and " OR " in st.value:
             # The OR form failed twice: fall back to the single most specific term.
@@ -1229,8 +1238,11 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         - in: 'posts' (default and cheapest: title, then title+selftext), 'comments' (comment
           bodies, grouped by post), or 'both' (splits the budget again).
         - max_requests: archive requests to spend (1-60, default 30). One request is one page of
-          100 items; the archive is slow, so 30 requests take one to several minutes. The status
-          check, and a retry after a rate limit (HTTP 429), can add one request each.
+          100 items; the archive is slow, so 30 requests take one to several minutes. Instant
+          refusals (fast HTTP 422, the archive shedding load) are retried after a growing pause
+          and do not count; after 6 minutes of such pauses the call stops. The status check, and
+          a retry after a rate limit (HTTP 429), can add one request each. For one old thread,
+          max_requests=60 with 1-2 subreddits reaches furthest back.
 
         How it works: the group with the most specific term is the anchor. Its distinct terms go to
         the archive one at a time, as one keyword (most specific first), and the tool
@@ -1271,8 +1283,11 @@ def register(mcp: Any, ctx: ServerContext) -> None:
             raise InputError("no usable search term: every term is a stop word")
         primary = anchors[0]
         start = client.call_requests
-        budget_end = start + max_requests
         state = DeepState()
+
+        def spent() -> int:
+            """Requests that count against max_requests: all but the fast 422s."""
+            return client.call_requests - start - state.fast_422s
 
         alts = anchors[:MAX_ANCHORS]
         steps: list[Step] = []
@@ -1303,7 +1318,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         max_steps = max_requests * 4  # bounds the loop when the cache answers
         n_steps = 0
         busy_stop = False
-        while n_steps < max_steps and client.call_requests < budget_end - reserve:
+        while n_steps < max_steps and spent() < max_requests - reserve:
             if state.waited >= MAX_TOTAL_WAIT:
                 busy_stop = True
                 break
@@ -1311,7 +1326,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
             if not ready:
                 break
             for st in ready:
-                if client.call_requests >= budget_end - reserve:
+                if spent() >= max_requests - reserve:
                     break
                 await _deep_step(client, st, state, now)
                 n_steps += 1
@@ -1321,7 +1336,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         if state.comments:
             missing = [lid for lid in sorted(state.comments, key=lambda k: -len(state.comments[k]))
                        if lid not in state.posts][:500]
-            if missing and client.call_requests < budget_end:
+            if missing and spent() < max_requests:
                 for x in await client.get_ids("posts", missing, fields=DEFAULT_POST_FIELDS):
                     pid = strip_prefix(x.get("id"))
                     if pid:
@@ -1385,6 +1400,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         not_started = [st.label() + f" in r/{st.sub}" for st in steps if st.status == "waiting"]
         coverage: dict[str, Any] = {
             "requests_used": used,
+            "fast_422s_not_counted": state.fast_422s,
             "max_requests": max_requests,
             "answered_from_cache": state.cache_hits,
             "seconds_waited_after_422": round(state.waited),
@@ -1407,8 +1423,10 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         if busy_stop:
             notes.append(
                 f"stopped early: the archive kept refusing keyword queries (fast HTTP 422, load shedding) "
-                f"and the tool had waited {state.waited:.0f} s. Try again in a few minutes, or run a web "
-                "search for candidate reddit.com URLs and read them with get_thread or get_posts."
+                f"and the tool had waited {state.waited:.0f} s. Call deep_search again with the same "
+                "concepts and subreddits and before=coverage.continue_with.before to go on from where it "
+                "stopped; if that also stops early, run a web search for candidate reddit.com URLs and "
+                "read them with get_thread or get_posts."
             )
         if truncated:
             notes.append(
@@ -1436,6 +1454,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         )
         # Counted after make_result, so the status check is included, as in count_mentions.
         coverage["requests_used"] = client.call_requests - start
+        coverage["counted_against_max_requests"] = spent()
         return result
 
     @archive_tool(mcp, title="Get posts")

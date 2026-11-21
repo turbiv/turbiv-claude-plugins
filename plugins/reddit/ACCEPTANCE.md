@@ -206,7 +206,14 @@ Done in `tools/discovery.py`. Tests: `tests/discovery/`. Costs and probe finding
   - Done: all 15 cases meet their bar, and `read-post`, `keyboard` and `find-post` beat the baseline. `find-post` passed 2 of 3 on its rerun, both times from the archive. `thread-follow-up` passed 2 of 3 (live bar). Scores: [`evals/RESULTS.md`](evals/RESULTS.md). The runner is [`evals/run-suite.sh`](evals/run-suite.sh): one command per case, because only `find-post` gets WebSearch.
 - [x] End-to-end: install the plugin from the marketplace in a fresh Claude Code session, then run the `read-post`, `find-post` and `keyboard` prompts by hand.
   - Done as far as possible before the push: `claude plugin marketplace add <this checkout>` and `claude plugin install reddit@turbiv-claude-plugins` in an empty `CLAUDE_CONFIG_DIR` worked, and `claude plugin list` showed the plugin enabled. That config has no login, so the three prompts ran through the eval runner instead, which starts a fresh Claude Code session with the plugin for every run (see `RESULTS.md`).
-  - **Left for after the push:** install from GitHub (`claude plugin marketplace add turbiv/turbiv-claude-plugins`) once and ask one question.
+  - **After the push (2026-11-21):**
+    - Ran `claude plugin marketplace update turbiv-claude-plugins` and `claude plugin install reddit@turbiv-claude-plugins` from GitHub `main` (3cf891f). `claude plugin list` showed reddit 0.1.0 enabled.
+    - Ran the `read-post` prompt in a fresh headless session (`claude -p`, only the plugin's tools allowed) in an empty folder.
+    - Results:
+      - The `plugin:reddit:reddit` server connected.
+      - Claude loaded the `research` skill and called `get_thread`.
+      - The summary matched the post: 2022-08-07, u/willswill, the PL1/PL2 table, and 22 archived comments. It cited comment permalinks.
+      - The session cost $0.35 and took 5 turns.
 - [x] A code review of the full plugin reports no open correctness issues.
   - Done: an independent review found 9 defects (caching of narrowed 422 answers, request budgets with 429 retries and tiny budgets, integer years, output size, partial `*/ids` caching, the second 429, a trending item without a date). All are fixed with tests: [`docs/review.md`](docs/review.md), "Code review". The coordinating session runs one more review before the push.
 - Also done in Session 5 (the shared-code requests from Sessions 2–4, and the behaviour and privacy review): [`docs/review.md`](docs/review.md).

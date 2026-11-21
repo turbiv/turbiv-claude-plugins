@@ -1229,7 +1229,8 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         - in: 'posts' (default and cheapest: title, then title+selftext), 'comments' (comment
           bodies, grouped by post), or 'both' (splits the budget again).
         - max_requests: archive requests to spend (1-60, default 30). One request is one page of
-          100 items; the archive is slow, so 30 requests take one to several minutes.
+          100 items; the archive is slow, so 30 requests take one to several minutes. The status
+          check, and a retry after a rate limit (HTTP 429), can add one request each.
 
         How it works: the group with the most specific term is the anchor. Its distinct terms go to
         the archive one at a time, as one keyword (most specific first), and the tool
@@ -1393,13 +1394,15 @@ def register(mcp: Any, ctx: ServerContext) -> None:
             "posts_examined": len(state.posts),
             "comments_examined": sum(len(v) for v in state.comments.values()),
             "full_matches": sum(1 for c in candidates if c[0] == len(groups)),
-            "steps": [_step_report(st) for st in steps],
+            # Steps not started are listed (capped) under not_started, not here, to keep this short.
+            "steps": [_step_report(st) for st in steps if st.status != "waiting"][:16],
             "windows_failed": state.failed[:10],
         }
         if truncated and oldest_open:
             coverage["continue_with"] = {"before": max(oldest_open), "before_date": iso(max(oldest_open))}
         if not_started:
-            coverage["not_started"] = not_started
+            coverage["not_started"] = not_started[:10] + (
+                [f"... and {len(not_started) - 10} more"] if len(not_started) > 10 else [])
         notes = list(state.notes)
         if busy_stop:
             notes.append(
@@ -1426,11 +1429,14 @@ def register(mcp: Any, ctx: ServerContext) -> None:
                 "the wording differs. Try other terms, a date range, or a web search for candidate "
                 "reddit.com URLs and read them with get_thread or get_posts."
             )
-        return await make_result(
+        result = await make_result(
             client, items=out, items_key="candidates", notes=notes,
             concepts=[" OR ".join(g) for g in groups], subreddits=subs, searched=search_in,
             coverage=coverage,
         )
+        # Counted after make_result, so the status check is included, as in count_mentions.
+        coverage["requests_used"] = client.call_requests - start
+        return result
 
     @archive_tool(mcp, title="Get posts")
     async def get_posts(ids_or_urls: list[str], text_chars: int = POST_TEXT_CHARS) -> dict:

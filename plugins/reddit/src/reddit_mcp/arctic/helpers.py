@@ -417,6 +417,8 @@ def to_epoch(value: Any, *, now: float | None = None) -> int:
     if isinstance(value, datetime):
         return int((value if value.tzinfo else value.replace(tzinfo=UTC)).timestamp())
     if isinstance(value, (int, float)):
+        if isinstance(value, int) and 1990 <= value <= 2100:
+            return to_epoch(str(value))  # a JSON number 2022 is a year, not 1970-01-01 00:33
         v = float(value)
         return int(v / 1000 if v > 1e11 else v)
     if not isinstance(value, str) or not value.strip():
@@ -498,6 +500,8 @@ def resolve_window(
     a = to_epoch(after, now=now) if after is not None else None
     b = None
     if before is not None:
+        if isinstance(before, int) and not isinstance(before, bool) and 1990 <= before <= 2100:
+            before = str(before)
         b = _end_of_period(before) if isinstance(before, str) else None
         b = b if b is not None else to_epoch(before, now=now)
     if a is not None and b is not None and a >= b:
@@ -598,9 +602,37 @@ async def make_result(
     if note_list:
         result["notes"] = note_list
     result.update(fields)
+    # Leave room for the untrusted-text label that archive_tool adds (about 100 tokens).
+    budget = max(1000, max_tokens - LABEL_RESERVE)
+    # Side lists (threads, coverage, ...) may use at most half the budget before the items are fit,
+    # so the items are not all dropped to make room for them.
+    _trim_other_lists(result, items_key, budget // 2)
     if items is not None:
         result[items_key] = list(items)
         result["count"] = len(result[items_key])
-        fit_to_budget(result, items_key, max_tokens)
+        fit_to_budget(result, items_key, budget)
         result["count"] = len(result[items_key])
+    _trim_other_lists(result, items_key, budget)
     return result
+
+
+LABEL_RESERVE = 200
+
+
+def _trim_other_lists(result: dict[str, Any], items_key: str, max_tokens: int) -> None:
+    """When the result is still over budget, cut the other long top-level lists from the end,
+    the longest first, and say so (criterion 7)."""
+    skip = {items_key, "notes", "warnings"}
+    while estimate_tokens(result) > max_tokens:
+        lists = [(estimate_tokens(v), k) for k, v in result.items()
+                 if k not in skip and isinstance(v, list) and len(v) > 1]
+        if not lists:
+            return
+        _, key = max(lists)
+        result[key].pop()
+        if f"omitted_{key}" not in result:
+            result.setdefault("notes", []).append(
+                f"'{key}' was cut to keep the answer short; omitted_{key} says how many entries were left out"
+            )
+        result[f"omitted_{key}"] = result.get(f"omitted_{key}", 0) + 1
+        result["truncated"] = True

@@ -803,7 +803,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
 
         rows = sorted(found.values(), key=lambda c: c.get("created_utc") or 0, reverse=direction == "desc")
         rows = rows[:limit]
-        threads = await _threads(ctx, rows)
+        threads = (await _threads(ctx, rows))[:THREADS_SHOWN]
         if q.has_exclusions:
             notes.append("Exclusions (-word, NOT) were applied by this tool after the archive's search.")
         if any(c.get("method", "").startswith("partial local scan") for c in coverage):
@@ -933,6 +933,9 @@ async def _scan(
     cov["window_fully_scanned"] = exhausted
     cov["matched"] = len(matches)
     return matches, cov
+
+
+THREADS_SHOWN = 20  # the threads with the most matching comments; keeps the result under budget
 
 
 async def _threads(ctx: ServerContext, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

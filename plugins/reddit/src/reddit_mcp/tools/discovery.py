@@ -178,26 +178,33 @@ class Scan:
 class _Pager:
     """Fetches pages for one stream and keeps the bookkeeping."""
 
-    def __init__(self, client: Any, path: str, params: Mapping[str, Any], fields: Sequence[str], scan: Scan):
+    def __init__(self, client: Any, path: str, params: Mapping[str, Any], fields: Sequence[str], scan: Scan,
+                 limit: int = 10**6):
         self.client, self.path, self.params, self.fields, self.scan = client, path, dict(params), fields, scan
+        self.limit = limit  # this stream's request budget
         self.seen: set[str] = set()
 
     async def page(self, after: int, before: int) -> tuple[list[dict[str, Any]], bool] | None:
         """One page newest-first in [after, before). Returns (items, full) or None on a 422.
-        `scan.requests` counts real HTTP requests, so a 422 retry uses up budget too."""
+        `scan.requests` counts real HTTP requests, so 422 and 429 retries use up budget too.
+        The 422 retry is skipped when only one request of the budget is left."""
+        sent = self.client.call_requests
         try:
             resp = await self.client.get(
                 self.path,
                 {**self.params, "sort": "desc", "limit": PAGE, "after": after, "before": before},
                 fields=self.fields,
-                retry_422=1,
+                retry_422=1 if self.limit - self.scan.requests >= 2 else 0,
             )
         except QueryTooHeavy as e:
-            self.scan.requests += max(1, len(e.attempts))
+            self.scan.requests += max(1, self.client.call_requests - sent)
             kind = "busy (fast 422)" if e.fast else "timed out (422)"
             self.scan.failed.append(f"{iso(after)} to {iso(before)}: archive {kind}")
             return None
-        self.scan.requests += len(resp.attempts)  # 0 for a cache hit
+        except RateLimited:
+            self.scan.requests += self.client.call_requests - sent
+            raise
+        self.scan.requests += self.client.call_requests - sent  # 0 for a cache hit
         data = [x for x in (resp.data or []) if isinstance(x, Mapping)]
         limit = int(resp.params.get("limit", PAGE))
         new = []
@@ -235,8 +242,8 @@ async def scan_window(
        newest page of each ('sampled'). Counts then cover a spread-out sample of the window.
     """
     scan = Scan(label=label, after=after, before=before)
-    pager = _Pager(client, path, params, fields, scan)
     pages = max(1, pages)
+    pager = _Pager(client, path, params, fields, scan, limit=pages)
     try:
         first = await pager.page(after, before)
         if first is None:  # the archive refused the whole window: sample it in slices instead
@@ -865,7 +872,12 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         hours = _clamp(hours, 1, 168, "hours")
         limit = _clamp(limit, 1, 50, "limit")
         max_requests = _clamp(max_requests, 1, MAX_REQUESTS_CAP, "max_requests")
-        page_budget = max(len(subs), max_requests - 1)  # 1 request to fetch the posts
+        if max_requests < len(subs) + 1:
+            raise InputError(
+                f"max_requests must be at least {len(subs) + 1} for {len(subs)} subreddit(s): one page "
+                "each, plus one to fetch the posts"
+            )
+        page_budget = max_requests - 1  # 1 request to fetch the posts
         sent_before = client.call_requests
         now = int(client.now())
         after = now - hours * 3600
@@ -908,6 +920,8 @@ def register(mcp: Any, ctx: ServerContext) -> None:
             base = shape_post(p, text_chars=200) if p else {
                 "id": link, "subreddit": post_sub.get(link),
                 "permalink": permalink_post(post_sub.get(link) or "", link),
+                "created": "unknown: the post is not in the archive",
+                "score_status": "none: the post is not in the archive",
                 "note": "post not in the archive",
             }
             entry = {
@@ -1008,7 +1022,13 @@ def register(mcp: Any, ctx: ServerContext) -> None:
             raise InputError("the window is empty")
 
         kinds = ["posts", "comments"] if where == "both" else [where]
-        pages = max(len(kinds) * len(subs), max_requests - 1)  # 1 request for thread titles
+        streams = len(kinds) * len(subs)
+        if max_requests < streams + 1:
+            raise InputError(
+                f"max_requests must be at least {streams + 1} here: one page per subreddit and kind "
+                f"({streams}), plus one for the thread titles"
+            )
+        pages = max_requests - 1  # 1 request for thread titles
         if where == "both":
             post_pages = max(len(subs), pages // 3)
             budgets = {"posts": post_pages, "comments": max(len(subs), pages - post_pages)}

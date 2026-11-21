@@ -163,7 +163,7 @@ async def test_budget_truncates_and_says_where_to_continue(client, db, fake_arch
     db.add(*filler(1000, per_day=2))
     d = (await deep(client, max_requests=4)).data
     cov = d["coverage"]
-    assert cov["truncated"] is True and cov["requests_used"] <= 4
+    assert cov["truncated"] is True and cov["requests_used"] <= 5  # the budget plus the status check
     assert cov["continue_with"]["before"] < PROBE_TIME
     assert any(n.startswith("truncated") and "before=" in n for n in d["notes"])
     assert cov["steps"][0]["resume_before"] == cov["continue_with"]["before"]

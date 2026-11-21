@@ -267,4 +267,5 @@ async def test_get_posts_splits_above_500(client, db, fake_archive):
     ids = [f"id{i:04d}" for i in range(1200)]
     r = await call(client, "get_posts", {"ids_or_urls": ids, "text_chars": 0})
     assert fake_archive.paths().count("posts/ids") == 3
-    assert len(r.data["not_found"]) == 1200
+    # a long side list is cut to the token budget, and the cut is counted (criterion 7)
+    assert len(r.data["not_found"]) + r.data.get("omitted_not_found", 0) == 1200

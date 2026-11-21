@@ -314,10 +314,9 @@ class ArcticShiftClient:
             data = self._parse_ok(resp, attempts)
             immutable = self._is_immutable(path, current, data)
             if use_cache:
+                # Stored under the params actually sent only: a narrowed answer (smaller limit) must
+                # never stand in for the full one, or a short page would read as the end of a window.
                 self.cache.put(self.cache.key(url, current), json.dumps(data), immutable=immutable, ttl=ttl)
-                if current != sent:
-                    # Do not let a narrowed answer stand in for the full one forever.
-                    self.cache.put(key, json.dumps(data), immutable=False, ttl=min(ttl or 60.0, 60.0))
             return ArchiveResponse(
                 data=data,
                 params=current,
@@ -459,7 +458,9 @@ class ArcticShiftClient:
             self._blocked_until = self._clock() + self._rate_limit_wait(resp)
             resp, attempt2 = await self._paced(url, params)
             if resp.status_code == 429:
-                raise RateLimited(self._rate_limit_wait(resp), attempts=[attempt, attempt2])
+                wait = self._rate_limit_wait(resp)
+                self._blocked_until = self._clock() + wait  # the next call waits too (E1)
+                raise RateLimited(wait, attempts=[attempt, attempt2])
             attempt = attempt2
         if resp.status_code >= 500:  # includes Cloudflare 52x and 530 (error 1033)
             await self._raise_unavailable(f"HTTP {resp.status_code}", [attempt], url)
@@ -547,7 +548,10 @@ class ArcticShiftClient:
         if not all(isinstance(x, Mapping) and item_is_final(x, now) for x in data):
             return False
         if path.endswith("/ids"):
-            return True
+            # Final only when every ID asked for came back: a missing one may be backfilled later.
+            asked = {i for i in str(params.get("ids", "")).split(",") if i}
+            got = {str(x.get("id")) for x in data if isinstance(x, Mapping)}
+            return bool(asked) and asked <= got
         if path in ("posts/search", "comments/search"):
             before = params.get("before")
             return before is not None and _is_epoch(before) and now - float(before) > FINAL_AGE

@@ -18,6 +18,7 @@ the Session 5 changes. Each finding says what was wrong, what changed and how it
 | 9 | Privacy | A doc named the probed user | fixed |
 | 10 | Cache | No size limit; immutable rows never left; a locked file could fail a tool | fixed: 200 MB cap, eviction, errors are misses |
 | 11 | Budget | `requests_used` counted other calls' requests | fixed: a counter per tool call |
+| R1–R9 | Code review | 9 correctness defects in caching, budgets, dates and output size | fixed, see "Code review" |
 
 ## 1. Untrusted text
 
@@ -128,6 +129,27 @@ counts the whole client. Two calls at the same time counted each other's request
 stop early because another call used "its" budget. Now `archive_tool` opens a counter per call (a context
 variable, so each MCP call's task has its own), and the tools read `client.call_requests`. Pacing is unchanged:
 still one request in flight for the whole server. Tests: `tests/test_shared_changes.py`.
+
+## Code review
+
+An independent review of the whole server (a separate agent, offline, with small scripts on the fake
+archive) found 9 defects. 6 were reproduced. All 9 are fixed, with tests in `tests/test_review_fixes.py`.
+
+| # | Defect | Fix |
+|---|---|---|
+| R1 | After a 422, the narrowed answer (limit 50) was also cached for 60 s under the full request (limit 100). A repeat call read the short page as the end of the window: `count_mentions` could then report "full counts" | The answer is stored only under the params actually sent |
+| R2 | `count_mentions` and `trending_posts` counted a 429 plus its retry as one request | Each page counts `client.call_requests` before and after |
+| R3 | A floor of one page per subreddit and kind let `max_requests=2` over 10 subreddits send 22 requests; the 422 retry on the last budget unit added one more | `max_requests` below one page per stream plus one is refused with a clear message; no 422 retry when one request is left |
+| R4 | `deep_search` reported `requests_used` before the status check | Counted after it; the description says the status check and a 429 retry can add one request each |
+| R5 | A JSON number `2022` for `after`/`before` was read as epoch seconds (1970), so the window was empty with no error | Integers 1990–2100 are years |
+| R6 | Side lists were never trimmed: `search_comments` with 100 results dropped every comment and was still about 9,800 tokens; a big `deep_search` coverage block pushed out the candidates; the label was added after trimming | Side lists may take at most half the budget before items are fit, and are cut further if needed (`omitted_<key>` and a note); 200 tokens are kept for the label; `search_comments` lists the 20 threads with most matches; `deep_search` lists only started steps and caps `not_started` |
+| R7 | A `*/ids` answer missing some IDs was cached as immutable, so a backfilled ID stayed "not found" | Immutable only when every requested ID came back |
+| R8 | A second 429 did not block later requests until the reset | `_blocked_until` is set before `RateLimited` is raised |
+| R9 | A trending post that is not in the archive had no date or score status | It says "unknown: the post is not in the archive" for both |
+
+The review found no problem in the request counter, pacing (one request in flight), the host rules, the
+subreddit fields and limits, or the cache cap. Eval runs before commit `86ad7b1` used the code without these
+fixes; they touch rare paths (422 and 429 retries, tiny budgets, very long results).
 
 ## Not changed
 

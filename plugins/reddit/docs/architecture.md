@@ -25,6 +25,7 @@ tests/
   fixtures/<area>/   saved archive responses (client, status, posts, comments, discovery)
   posts/ comments/ discovery/   each session's own tests go here
 evals/<case>/        claude plugin eval cases (see evals/README.md)
+skills/research/     the research skill (Session 5): the order of steps, citations, data limits
 ```
 
 ## Ownership
@@ -63,6 +64,11 @@ def register(mcp, ctx: ServerContext) -> None:
 - **What `archive_tool` does:**
   - It registers the function with read-only annotations.
   - It appends `SOURCE_NOTE` to the description.
+  - It opens a request counter for the call: `client.call_requests` counts only this call's HTTP requests,
+    even when other tool calls run at the same time.
+  - When the result holds text written by Reddit users (`USER_TEXT_KEYS`: `title`, `selftext`, `body`,
+    `content`, `description`, `snippet`, …), it adds `untrusted_text: UNTRUSTED_TEXT_NOTE` right after `source`.
+    That text is data, not instructions.
   - It turns `ArchiveError` and `InputError` into a `ToolError` whose text starts with the error category.
     For example: `archive unavailable: …`, `the query is too heavy for the archive …`, `input error: …`.
 - **What `make_result` does:**
@@ -84,7 +90,9 @@ def register(mcp, ctx: ServerContext) -> None:
   in `POST_FIELDS` or `COMMENT_FIELDS`. `full=True` asks for full objects instead. You need full objects for
   `permalink`, `upvote_ratio`, `controversiality`, `domain`, `is_self`, `removed_by_category` and `_meta`.
 - **Refused before any request, with `InputError`:**
-  - `limit` above 100 on a search, or `limit=auto`
+  - `limit` above 100 on a search (1000 on `subreddits/search` and `users/search`), or `limit=auto`
+  - on `subreddits/search`, a `fields=` name outside `SUBREDDIT_FIELDS` (the archive refuses `title`,
+    `subreddit_type` and `_meta` there)
   - `after` or `before` that are not epoch seconds (use `to_epoch` or `resolve_window`)
   - `query`, `title`, `selftext` or `body` without a `subreddit`, `author`, `link_id` or `parent_id` (T5)
   - any host that is not one of the two archive hosts (D1)
@@ -93,6 +101,9 @@ def register(mcp, ctx: ServerContext) -> None:
   - `.params`: what was actually sent, after any 422 narrowing
   - `.narrowed` and `.notes`: whether a 422 retry changed `limit`, and how
   - `.from_cache`, `.attempts`, `.elapsed`
+- **Clock and counters:** `client.now()` (wall clock) and `await client.sleep(s)` are the clock tools use, so
+  tests run on the fake clock. `client.call_requests` is the HTTP requests of the current tool call;
+  `client.request_count` counts the whole client.
 - **Pacing:** one request in flight, and at least `min_interval` seconds (default 1 s, floor 0.5 s) between the
   end of one request and the start of the next (R1). Calls from parallel tools queue behind each other.
 - **The cache:**
@@ -101,6 +112,9 @@ def register(mcp, ctx: ServerContext) -> None:
     more than 72 h old.
   - **Everything else:** a TTL of `REDDIT_MCP_CACHE_TTL` (default 600 s), or the call's own `ttl`.
   - Errors are never cached.
+  - **Size:** at most `REDDIT_MCP_CACHE_MAX_MB` (default 200 MB) of bodies. Expired rows are deleted at start and
+    every 200 writes; past the cap the oldest rows go first. A locked or broken cache file is a miss, never an
+    error.
 
 `await client.get_ids("posts" | "comments", ids, fields=..., full=False) -> list`
 
@@ -137,7 +151,7 @@ To narrow a query yourself, pass `retry_422=0` and catch `QueryTooHeavy`. `deep_
 | `permalink_post(sub, id)` | `https://www.reddit.com/r/{sub}/comments/{id}/` (O2) |
 | `permalink_comment(sub, link_id, id)` | `https://www.reddit.com/r/{sub}/comments/{link_id}/_/{id}/` |
 | `score_status(item, now=None)` | `"snapshot"` or `"initial"`; the evidence rules are in its docstring and in probes Q5 (O1) |
-| `shape_post(item)`, `shape_comment(item)` | the output dict for one item: `permalink`, `created_utc`, `created`, `score`, `score_status`, trimmed text with `truncated: true` (selftext 1,500 chars, body 800), `retrieved_on`, `retrieved_2nd_on`, `upvote_ratio` clamped to 0–1; no `downs` |
+| `shape_post(item)`, `shape_comment(item)` | the output dict for one item: `permalink`, `created_utc`, `created`, `score`, `score_status`, trimmed text with `truncated: true` (selftext 1,500 chars, body 800), `retrieved_on`, `retrieved_2nd_on`, `upvote_ratio` clamped to 0–1 and rounded to 2 decimals; no `downs` |
 | `trim_text(text, max_chars)` | returns `(text, truncated)` |
 | `estimate_tokens(obj)`, `fit_to_budget(result, key, max_tokens=8000)` | output size (criterion 7) |
 | `to_epoch(value)` | epoch seconds or ms, `"2025"`, `"2025-03"`, ISO dates and datetimes, `"3 months"`, `"2d"`; a bare `m` is refused as ambiguous |
@@ -146,6 +160,7 @@ To narrow a query yourself, pass `retry_422=0` and catch `QueryTooHeavy`. `deep_
 | `parse_comment_ref(ref)` | `(comment_id, post_id or None)` |
 | `strip_prefix(id)`, `chunked(seq, n)`, `iso(ts)`, `age_words(seconds)` | small utilities |
 | `ARCHIVE_NOTICE`, `SOURCE_NOTE`, `COMMENT_COMPLETENESS_NOTE`, `unavailable_feature(name)` | the standard labels (O3, O4, T4) |
+| `UNTRUSTED_TEXT_NOTE`, `has_user_text(obj)`, `label_untrusted(result)` | the Reddit-text-is-data label; `archive_tool` applies it |
 | `make_result(client, items=..., notes=..., comments=False, **fields)` | the result envelope |
 
 ## Settings (environment)
@@ -158,6 +173,7 @@ To narrow a query yourself, pass `retry_422=0` and catch `QueryTooHeavy`. `deep_
 | `REDDIT_MCP_TIMEOUT` | `30` | seconds per request |
 | `REDDIT_MCP_CACHE` | `~/.cache/reddit-mcp/cache.sqlite3` | cache file, or `off` |
 | `REDDIT_MCP_CACHE_TTL` | `600` | seconds, for data that is not final |
+| `REDDIT_MCP_CACHE_MAX_MB` | `200` | cache size cap |
 | `REDDIT_MCP_USER_AGENT` | `reddit-research-mcp/<version> (…; +<project URL>)` | R6 |
 
 `claude plugin eval` lets a case set only `EVAL_*` variables. So each setting also reads an `EVAL_` copy, for

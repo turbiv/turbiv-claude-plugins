@@ -15,6 +15,7 @@ Errors are never stored.
 from __future__ import annotations
 
 import sqlite3
+import sys
 import time
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -128,11 +129,28 @@ class ResponseCache:
         return deleted
 
     def is_immutable(self, key: str) -> bool | None:
-        row = self._db.execute("SELECT expires_at FROM responses WHERE key = ?", (key,)).fetchone()
+        try:
+            row = self._db.execute("SELECT expires_at FROM responses WHERE key = ?", (key,)).fetchone()
+        except sqlite3.Error:
+            return None
         return None if row is None else row[0] is None
 
     def close(self) -> None:
         self._db.close()
+
+
+def open_cache(path: Path | str | None, *, ttl: float, max_bytes: int = DEFAULT_MAX_BYTES) -> "ResponseCache | NullCache":
+    """The SQLite cache at `path`, or `NullCache` when it cannot be opened (an unwritable folder, a
+    corrupt file, a lock held too long). The server then runs without a cache instead of failing
+    to start, and says so in one line on stderr (stdout is the MCP channel)."""
+    if path is None:
+        return NullCache()
+    try:
+        return ResponseCache(path, ttl=ttl, max_bytes=max_bytes)
+    except (sqlite3.Error, OSError) as e:
+        print(f"reddit-mcp: cache {path} not usable ({e.__class__.__name__}: {e}); running without a cache",
+              file=sys.stderr)
+        return NullCache()
 
 
 class NullCache:
@@ -150,6 +168,9 @@ class NullCache:
 
     def purge_expired(self) -> int:
         return 0
+
+    def is_immutable(self, key: str) -> bool | None:
+        return None
 
     def close(self) -> None:
         return None

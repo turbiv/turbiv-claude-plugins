@@ -51,6 +51,7 @@ from ..arctic import (
     strip_prefix,
     unavailable_feature,
 )
+from ..arctic.sanitize import harden
 from ..context import ServerContext
 
 TREE_LIMIT = 200  # T9: comments asked from comments/tree per thread (the same for every call, so it caches)
@@ -233,7 +234,13 @@ def comment_out(raw: dict[str, Any], op: str | None, text_chars: int, *, keep_pa
 
 
 def fit(make: Callable[[int], dict[str, Any]], k_max: int, budget: int = BUDGET) -> tuple[dict[str, Any], int]:
-    """The result with the most shown comments (<= k_max) that stays within `budget` tokens."""
+    """The result with the most shown comments (<= k_max) that stays within `budget` tokens.
+    Each candidate is hardened first (sanitize.harden), so the injection marks count in the fit."""
+    raw = make
+
+    def make(k: int) -> dict[str, Any]:
+        return harden(raw(k))[0]
+
     full = make(k_max)
     if estimate_tokens(full) <= budget or k_max == 0:
         return full, k_max

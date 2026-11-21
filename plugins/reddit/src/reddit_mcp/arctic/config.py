@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import math
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -52,6 +54,20 @@ _ENV_KEYS = (
 )
 
 
+def _number(name: str, value: str) -> float | None:
+    """A positive finite number, or None after one line on stderr: a bad value keeps the default
+    instead of stopping the server at startup."""
+    try:
+        n = float(value)
+    except ValueError:
+        n = None
+    if n is None or not math.isfinite(n) or n <= 0:
+        print(f"reddit-mcp: ignoring {name}={value!r} (not a positive number); using the default",
+              file=sys.stderr)
+        return None
+    return n
+
+
 @dataclass(frozen=True)
 class Settings:
     base_url: str = DEFAULT_BASE_URL
@@ -94,14 +110,16 @@ class Settings:
             kw["base_url"] = v
         if v := env.get("REDDIT_MCP_STATUS_URL"):
             kw["status_url"] = v
-        if v := env.get("REDDIT_MCP_MIN_INTERVAL"):
-            kw["min_interval"] = float(v)
-        if v := env.get("REDDIT_MCP_TIMEOUT"):
-            kw["timeout"] = float(v)
-        if v := env.get("REDDIT_MCP_CACHE_TTL"):
-            kw["cache_ttl"] = float(v)
-        if v := env.get("REDDIT_MCP_CACHE_MAX_MB"):
-            kw["cache_max_mb"] = max(1.0, float(v))
+        for name, key, floor in (
+            ("REDDIT_MCP_MIN_INTERVAL", "min_interval", None),
+            ("REDDIT_MCP_TIMEOUT", "timeout", None),
+            ("REDDIT_MCP_CACHE_TTL", "cache_ttl", None),
+            ("REDDIT_MCP_CACHE_MAX_MB", "cache_max_mb", 1.0),
+        ):
+            if v := env.get(name):
+                number = _number(name, v)
+                if number is not None:
+                    kw[key] = max(floor, number) if floor is not None else number
         if v := env.get("REDDIT_MCP_USER_AGENT"):
             kw["user_agent"] = v
         if v := env.get("REDDIT_MCP_CACHE"):

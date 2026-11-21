@@ -88,3 +88,25 @@ def test_locked_file_is_a_miss_not_an_error(tmp_path: Path):
     finally:
         other.rollback()
         other.close()
+
+
+def test_an_unusable_cache_falls_back_to_no_cache(tmp_path: Path, capsys):
+    from reddit_mcp.arctic import ArcticShiftClient, NullCache
+    from reddit_mcp.arctic.cache import open_cache
+
+    bad = tmp_path / "corrupt.sqlite3"
+    bad.write_bytes(b"this is not a sqlite file" * 100)
+    assert isinstance(open_cache(bad, ttl=60), NullCache)
+    blocker = tmp_path / "a-file"
+    blocker.write_text("x")
+    assert isinstance(open_cache(blocker / "sub" / "c.sqlite3", ttl=60), NullCache)  # parent is a file
+    err = capsys.readouterr().err
+    assert err.count("running without a cache") == 2
+    client = ArcticShiftClient(Settings(cache_path=bad))  # the server starts anyway
+    assert isinstance(client.cache, NullCache) and client.cache.is_immutable("k") is None
+
+
+def test_is_immutable_survives_a_broken_file(tmp_path: Path):
+    c = ResponseCache(tmp_path / "c.sqlite3")
+    c._db.close()
+    assert c.is_immutable("k") is None

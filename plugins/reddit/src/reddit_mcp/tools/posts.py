@@ -831,6 +831,8 @@ class DeepState:
     wait: float = FAST_422_WAIT  # pause after the next fast 422; doubles while they continue
     waited: float = 0.0
     fast_422s: int = 0  # load-shedding refusals: bounded by MAX_TOTAL_WAIT, not by max_requests
+    # post id -> (step kind, term) of the first title/query step that returned it
+    found_by: dict[str, tuple[str, str]] = field(default_factory=dict)
 
 
 def _anchor_terms(concepts: list[list[str]]) -> tuple[int, list[str]]:
@@ -922,6 +924,7 @@ async def _deep_step(client: ArcticShiftClient, st: Step, state: DeepState, now:
                 state.comments.setdefault(link, []).append(dict(x))
         else:
             state.posts.setdefault(xid, dict(x))
+            state.found_by.setdefault(xid, (st.kind, st.value))
     st.items += len(page)
     if page:
         st.oldest = _created(page[-1]) if st.oldest is None else min(st.oldest, _created(page[-1]))
@@ -1373,8 +1376,11 @@ def register(mcp: Any, ctx: ServerContext) -> None:
                         where = f"{m.term} ({'comment' if fname == 'comments' else fname})"
                         in_title += fname == "title"
                         break
-                if where is None and gi == anchor_group and pid not in state.comments:
-                    where = f"{primary} (archive match)"
+                if where is None and gi == anchor_group and pid in state.found_by:
+                    # The archive matched this post on the term its step sent; local matching did
+                    # not see it (stemming, markup). Credit the group with that term only.
+                    kind, term = state.found_by[pid]
+                    where = f"{term} (archive {kind} match)"
                 if where:
                     covered += 1
                     hits.append(where)

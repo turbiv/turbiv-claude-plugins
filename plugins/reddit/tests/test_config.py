@@ -49,3 +49,14 @@ def test_reddit_hosts_cannot_be_configured(url):
 
 def test_interval_floor():
     assert Settings(min_interval=0).min_interval == 0.5
+
+
+def test_a_bad_number_keeps_the_default_and_says_which(capsys):
+    from reddit_mcp.arctic import Settings
+
+    s = Settings.from_env({"REDDIT_MCP_TIMEOUT": "thirty", "REDDIT_MCP_MIN_INTERVAL": "-1",
+                           "EVAL_REDDIT_MCP_CACHE_TTL": "nan", "REDDIT_MCP_CACHE_MAX_MB": "50"})
+    assert (s.timeout, s.min_interval, s.cache_ttl, s.cache_max_mb) == (30.0, 1.0, 600.0, 50.0)
+    err = capsys.readouterr().err
+    for name in ("REDDIT_MCP_TIMEOUT", "REDDIT_MCP_MIN_INTERVAL", "REDDIT_MCP_CACHE_TTL"):
+        assert f"ignoring {name}=" in err

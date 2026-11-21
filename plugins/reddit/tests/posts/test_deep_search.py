@@ -226,3 +226,20 @@ async def test_input_checks(client, db, fake_archive):
         r = await c.call_tool("deep_search", {"concepts": CONCEPTS, "subreddits": []}, raise_on_error=False)
         assert r.is_error and "no Reddit-wide keyword search" in r.content[0].text
     assert fake_archive.requests == []
+
+
+async def test_anchor_credit_names_the_step_and_term_that_found_the_post(client, db, fake_archive):
+    """A post the archive returned for title=9900k, but whose text the local matcher cannot see
+    the term in, is credited with that term and step, not with the primary term by default."""
+    hidden = post("arc", title="CPU power limit help", selftext="(markup the local matcher cannot read)", age_days=5)
+
+    def reply(request):
+        p = dict(request.url.params)
+        return {"data": [hidden] if p.get("title") == "9900kf" else []}
+
+    fake_archive.add("posts/search", reply)
+    d = (await deep(client, max_requests=10)).data
+    top = next(c for c in d["candidates"] if c["id"] == "arc")
+    assert "9900kf (archive title match)" in top["matched"]
+    assert "9900k (archive match)" not in top["matched"]
+

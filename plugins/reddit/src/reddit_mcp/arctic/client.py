@@ -31,7 +31,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from .cache import NullCache, ResponseCache
+from .cache import NullCache, ResponseCache, open_cache
 from .config import Settings, is_forbidden_host
 from .errors import (
     ArchiveUnavailable,
@@ -204,11 +204,8 @@ class ArcticShiftClient:
         self.settings = settings or Settings.from_env()
         if cache is None:
             path = self.settings.cache_path
-            cache = (
-                ResponseCache(path, ttl=self.settings.cache_ttl, max_bytes=int(self.settings.cache_max_mb * 1024 * 1024))
-                if path is not None
-                else NullCache()
-            )
+            cache = open_cache(path, ttl=self.settings.cache_ttl,
+                               max_bytes=int(self.settings.cache_max_mb * 1024 * 1024))
         self.cache = cache
         self._sleep = sleep
         self._clock = clock

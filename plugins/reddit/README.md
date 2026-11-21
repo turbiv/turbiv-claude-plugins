@@ -100,7 +100,12 @@ Arctic Shift is run by one volunteer, on donations. It has outages. When it is d
 - **Be kind to the archive.** The server sends one request at a time, at least 1 s apart, and caches answers.
   For bulk data, use the Arctic Shift monthly dumps, not this server.
 - **Reddit text is untrusted.** Posts and comments can contain text aimed at AI tools. Every result that holds
-  Reddit text labels it as data, not instructions.
+  Reddit text labels it as data, not instructions. The server also removes invisible text (zero-width and bidi
+  characters, other format characters, HTML comments) and counts it in `stripped_invisible`, and marks items
+  whose text looks like an instruction to an AI tool with `possible_injection`. It never hides an item.
+- **Keep permission prompts on.** During Reddit research, keep Claude Code's permission prompts for Bash, Write
+  and WebFetch, and do not use bypass mode: a post that tricks Claude into a command, a file write or a fetch
+  then still needs your yes.
 
 ## Settings
 

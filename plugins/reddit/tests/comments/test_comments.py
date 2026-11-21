@@ -140,7 +140,9 @@ async def test_get_thread_reads_the_whole_archived_thread(client, fake_archive):
     post = data["post"]
     assert post["id"] == "wi7uhk" and post["author"] == OP and post["score"] == 9
     assert post["created"].startswith("2022-08-07") and post["score_status"] == "snapshot"
-    assert "truncated" not in post and len(post["selftext"]) == 6606  # the whole post
+    # the whole post, less its 15 invisible "&#x200B;" entities (8 characters each), which are counted
+    assert "truncated" not in post and len(post["selftext"]) == 6606 - 15 * 8
+    assert post["stripped_invisible"] == 15
     shown = comments_in(data["comments"])
     assert len(shown) == 22 and not stubs_in(data["comments"])
     for c in shown:

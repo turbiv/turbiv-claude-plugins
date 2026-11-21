@@ -9,7 +9,7 @@ description: >-
 tags: [session-2, live, beats-baseline]
 runs: 3
 max_turns: 25
-timeout_seconds: 1200
+timeout_seconds: 2400
 allowed_tools: [Read, Glob, Grep, ToolSearch, WebSearch, "mcp__plugin_reddit_reddit__*"]
 ---
 I want to know what power limits I should set for my Intel i9 9900K. What do people on Reddit say?

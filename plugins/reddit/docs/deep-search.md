@@ -184,4 +184,15 @@ with `fields=id,created_utc` was fetched at two dates:
 
 See the table in [`../EVALS.md`](../EVALS.md) for pass rates. Details per run:
 
-<!-- filled in after the runs -->
+All runs used `--allow-tools "mcp__plugin_reddit_reddit__*" WebSearch`. Claude picked
+`intel, overclocking, buildapc` every time, often with `in: "both"`, and never used WebSearch.
+
+| Run set | Code | wi7uhk returned by the plugin | Passed | Notes |
+|---|---|---|---|---|
+| dev 1, dev 2 | early anchors | 0 of 2 | 0 of 2 | the budget was split 15 ways (5 subreddits, `both`) |
+| final, 3 runs | length-based anchors | 1 of 3 | 0 of 3 | the run that found it anchored on `title="power limit"` in r/buildapc. Its answer was good; the `grounded-answer` judge was too strict and has been loosened. Two runs anchored on "multicore enhancement" or "short duration" and found nothing |
+| final rerun | model-number anchors | 0 of 2 | 0 of 2 | the archive shed load: the 240 s waiting cap stopped `deep_search` after 6 and 15 requests. The third run and the baseline arm did not run: the account usage limit was hit |
+
+- **Status:** `find-post` does not meet 2 of 3 yet.
+- **What the archive path needs:** a quieter archive, or 1–2 subreddits per call.
+- **The fallback** depends on Session 5's skill telling Claude to use web search when the result is truncated.

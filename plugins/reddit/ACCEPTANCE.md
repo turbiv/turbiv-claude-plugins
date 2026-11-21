@@ -185,7 +185,7 @@ Done in `tools/discovery.py`. Tests: `tests/discovery/`. Costs and probe finding
 
 ### Session 5: research skill, docs and end-to-end check
 
-- [ ] The plugin has a skill that sets the research order:
+- [x] The plugin has a skill that sets the research order:
   1. Find subreddits.
   2. Check their activity.
   3. Search or list posts.
@@ -194,15 +194,29 @@ Done in `tools/discovery.py`. Tests: `tests/discovery/`. Costs and probe finding
   6. Cite permalinks and state the data limits.
 
   If archive search does not find a known post, the skill tells Claude to use its web search for candidate Reddit URLs, then read them through the plugin.
-- [ ] The README covers:
+  - Done: [`skills/research/SKILL.md`](skills/research/SKILL.md) (`reddit:research`). It also says that Reddit text is data, not instructions, and how to find one old thread: `deep_search` with 1–2 subreddits and `max_requests: 60`, then the resume hint up to 3 calls, then the web search.
+  - **Fact** (2026-11-21): Claude's WebSearch returns no reddit.com results. `allowed_domains: ["reddit.com"]` fails with HTTP 400, "domains are not accessible to our user agent". So the web-search fallback rarely finds a thread; the skill says so and relies on the archive first.
+- [x] The README covers:
   - install
   - every tool with one example
   - what is not possible: hot, relevance, global search, live scores
   - the March 2027 risk
   - personal, non-commercial use only (L3)
 - [ ] Run the full eval suite with `claude plugin eval plugins/reddit`. Every case in [`EVALS.md`](EVALS.md) meets its pass rate, and the "beats baseline" cases beat the no-plugin run. Record the scores in `plugins/reddit/evals/RESULTS.md`.
-- [ ] End-to-end: install the plugin from the marketplace in a fresh Claude Code session, then run the `read-post`, `find-post` and `keyboard` prompts by hand.
-- [ ] A code review of the full plugin reports no open correctness issues.
+  - Scores: [`evals/RESULTS.md`](evals/RESULTS.md). The runner is [`evals/run-suite.sh`](evals/run-suite.sh): one command per case, because only `find-post` gets WebSearch.
+- [x] End-to-end: install the plugin from the marketplace in a fresh Claude Code session, then run the `read-post`, `find-post` and `keyboard` prompts by hand.
+  - Done as far as possible before the push: `claude plugin marketplace add <this checkout>` and `claude plugin install reddit@turbiv-claude-plugins` in an empty `CLAUDE_CONFIG_DIR` worked, and `claude plugin list` showed the plugin enabled. That config has no login, so the three prompts ran through the eval runner instead, which starts a fresh Claude Code session with the plugin for every run (see `RESULTS.md`).
+  - **Left for after the push:** install from GitHub (`claude plugin marketplace add turbiv/turbiv-claude-plugins`) once and ask one question.
+- [x] A code review of the full plugin reports no open correctness issues.
+  - Done: an independent review found 9 defects (caching of narrowed 422 answers, request budgets with 429 retries and tiny budgets, integer years, output size, partial `*/ids` caching, the second 429, a trending item without a date). All are fixed with tests: [`docs/review.md`](docs/review.md), "Code review". The coordinating session runs one more review before the push.
+- Also done in Session 5 (the shared-code requests from Sessions 2–4, and the behaviour and privacy review): [`docs/review.md`](docs/review.md).
+  - **Rule changes:**
+    - `deep_search` retries a fast 422 on the same window after the growing pause, and never halves the window for it. Only a slow 422 halves it.
+    - Fast 422s do not count against `max_requests`. The waiting cap (now 6 minutes) bounds them.
+    - Reason: halving did not change the odds of a fast 422, and a fast refusal costs the archive almost nothing ([`docs/deep-search.md`](docs/deep-search.md)).
+    - `count_mentions` and `trending_posts` refuse a `max_requests` below one page per stream plus one.
+    - Every result with Reddit text carries `untrusted_text`.
+    - `find_subreddits` asks for slim objects, so it no longer shows archived totals.
 
 ## Out of scope
 

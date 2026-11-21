@@ -18,6 +18,7 @@ the Session 5 changes. Each finding says what was wrong, what changed and how it
 | 9 | Privacy | A doc named the probed user | fixed |
 | 10 | Cache | No size limit; immutable rows never left; a locked file could fail a tool | fixed: 200 MB cap, eviction, errors are misses |
 | 11 | Budget | `requests_used` counted other calls' requests | fixed: a counter per tool call |
+| F1–F9 | Final review | sanitizer over-reach, startup failures, budget, deep_search credit, fit speed | fixed, see "Final review" |
 | H1–H4 | Injection hardening | invisible text, injection marks, no private data in queries, permission note | done, see "Prompt-injection hardening" |
 | R1–R9 | Code review | 9 correctness defects in caching, budgets, dates and output size | fixed, see "Code review" |
 
@@ -139,20 +140,23 @@ text is data. These changes make the text itself safer, and test that Claude doe
 - **Invisible text is removed, and counted.** `sanitize.clean_text` runs once, in `archive_tool`, over every
   Reddit-text field of every result: titles, selftext, comment bodies, wiki pages, subreddit descriptions,
   snippets, flair and usernames. It removes:
-  - every Unicode format character (category Cf): zero-width characters (U+200B–U+200D, U+2060, U+FEFF), bidi
-    controls (U+202A–U+202E, U+2066–U+2069), the soft hyphen, and the tag characters (U+E0000 block) that can
-    spell invisible ASCII;
+  - Unicode format characters (category Cf): U+200B, U+2060, U+FEFF, the bidi overrides and isolates
+    (U+202A–U+202E, U+2066–U+2069), the soft hyphen, and the tag characters (U+E0000 block) that can spell
+    invisible ASCII. ZWJ and ZWNJ stay when they join two letters or emoji, and LRM, RLM and ALM stay (see
+    "Final review" below);
   - numeric HTML entities of those characters (`&#x200B;`, common in old Reddit markdown);
-  - HTML comments, raw (`<!-- … -->`) or escaped (`&lt;!-- … --&gt;`), and an unclosed one to the end.
+  - closed HTML comments, raw (`<!-- … -->`) or escaped (`&lt;!-- … --&gt;`).
 
   Each item that lost anything gets `stripped_invisible: n`. The result gets the total and a note. The
   `wi7uhk` post, for example, loses 15 `&#x200B;` entities.
-- **Likely injections are marked, never hidden.** `sanitize.find_injection` is a list of 10 tested patterns:
-  - addressing the model: "ignore/disregard … instructions", "you are now an AI …", "AI assistant(s)",
-    "system prompt/notice";
-  - tool and command bait: "run this command", `curl`/`wget` with a URL, `rm -rf`, a pipe into `sh`,
-    "open/fetch this URL";
-  - secrets: `~/.ssh`, `.env`, "API key", "environment variable".
+- **Likely injections are marked, never hidden.** `sanitize.find_injection` is a list of 9 tested patterns
+  (narrowed in the final review, F6):
+  - addressing the model: "ignore/disregard … instructions", "you are now an AI …", "AI assistants: …",
+    "note for AI …", "[SYSTEM …", "system notice: …";
+  - tool and command bait: "run this command", `curl`/`wget` piped into a shell, `rm -rf /`, "open/fetch
+    this URL";
+  - secrets: a verb aimed at the reader's own `~/.ssh`, `.env`, API key, token, password or environment
+    variable.
 
   A hit adds `possible_injection: true` and `injection_match` to the item, and a summary note to the result.
   The text stays as it was. Normal hardware talk ("PL1 to 95 W", "follow the instructions in the manual") does
@@ -162,7 +166,7 @@ text is data. These changes make the text itself safer, and test that Claude doe
   secrets, `~/.ssh`, `.env` or earlier private context.
 - **README:** keep the permission prompts for Bash, Write and WebFetch on during Reddit research, and do not
   use bypass mode. Then a post that tricks Claude into a command, a write or a fetch still needs the user's yes.
-- **Tests:** `tests/test_hardening.py`: 14 cleaning cases, 13 pattern hits, 5 misses on normal text, a
+- **Tests:** `tests/test_hardening.py`: 22 cleaning cases, 13 pattern hits, 15 misses on normal and AI-subreddit text, a
   result-wide pass that keeps every item, and the tool path (`get_posts`) for hidden and visible injections.
 - **Evals:** five new mocked cases, plus `injection`. All mocks are the real tool output for made-up threads,
   built by `evals/make_injection_mocks.py`. Scores: [`../evals/RESULTS.md`](../evals/RESULTS.md).
@@ -180,6 +184,25 @@ text is data. These changes make the text itself safer, and test that Claude doe
     Claude's own judgement stay the main defence.
   - Local matching in `count_mentions` and `deep_search` runs on the raw text. An invisible character inside a
     word can make a mention miss there.
+
+## Final review (coordinating session)
+
+Nine findings on the hardening and the shared code. All are fixed, each with a test.
+
+| # | Finding | Fix | Test |
+|---|---|---|---|
+| F1 | An unclosed `<!--` deleted the rest of the text, but Reddit shows it to readers (a post about HTML) | Only closed comments are removed; an unclosed one stays and is still checked for injections | `test_clean_text`, `test_hidden_parts_are_checked_and_unclosed_comments_stay_checked` |
+| F2 | Stripping every Cf character broke emoji sequences (👨‍👩‍👧) and Persian and Indic spelling, and put the "hidden text" note on ordinary posts | ZWJ/ZWNJ stay between two letters, marks or emoji; LRM, RLM and ALM stay. The injection check removes joiners first, so "ig‍nore" is still caught | `test_clean_text` (family emoji, skin tone, Persian ZWNJ, Devanagari, LRM/RLM), `test_split_trigger_words_are_still_caught` |
+| F3 | A cache that could not be opened (unwritable folder, corrupt file, a long lock) stopped the server at startup | `open_cache` falls back to `NullCache` with one line on stderr; `is_immutable` catches SQLite errors | `test_an_unusable_cache_falls_back_to_no_cache`, `test_is_immutable_survives_a_broken_file` |
+| F4 | The "has Reddit text" check and the hardening used two key sets; flair, author and `rule` (subreddit_info's rule names) were missed | One set, `sanitize.TEXT_KEYS`, with `rule` | `test_rule_names_and_flair_are_hardened` |
+| F5 | The per-item marks were added after the budget fit, so a result with many flagged items could pass ~8k tokens | `make_result` and `get_thread`'s `fit()` harden before they fit; the later pass in `archive_tool` is idempotent and counts what the items carry | `test_forty_flagged_items_stay_under_the_budget`, `test_harden_is_idempotent` |
+| F6 | "AI assistant/model/tool", `.env` and "API key / access token / environment variable" flagged ordinary posts in tech and AI subreddits; so did "system prompt" | Patterns now need words aimed at the reader: "AI assistants:", "AI assistants reading/summarizing …", "note for AI …", "[SYSTEM", "system notice:", and a verb aimed at secrets ("send/paste/search for … your .env / ~/.ssh / API key"), not after "never" or "not". `curl`/`wget` must pipe into a shell. The check also runs on the hidden parts that were removed | 10 r/LocalLLaMA-style sentences in `test_ordinary_ai_and_tech_talk_is_not_flagged`; all 6 injection evals rerun |
+| F7 | `deep_search` credited the anchor group as "<primary> (archive match)" for any post with no local match, also when another term or the comment step found it | Each post records the title or query step and term that first returned it; the group is credited only with that term, as "<term> (archive title match)" | `test_anchor_credit_names_the_step_and_term_that_found_the_post` |
+| F8 | A bad `REDDIT_MCP_*` number stopped the server at startup | It is ignored, the default stays, and one stderr line names the variable | `test_a_bad_number_keeps_the_default_and_says_which` |
+| F9 | `fit_to_budget` and `_trim_other_lists` encoded the whole result again for every entry they dropped | Each entry is measured once and subtracted, then one exact check | `test_fit_measures_each_item_once` |
+
+**Still flagged on purpose:** a `curl … | sh` install line (common in r/LocalLLaMA, for example) is marked,
+because it is exactly the command bait the marks exist for. A mark changes nothing in the text.
 
 ## Code review
 

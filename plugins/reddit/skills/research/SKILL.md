@@ -66,9 +66,18 @@ retries those itself, and they do not use up its budget. An old thread is reache
 depth matters more than breadth.
 
 1. Call `deep_search` with **1-2 subreddits per call**, `in: "posts"` and **`max_requests: 60`**.
-   - Put the **largest** fitting community first. A general help subreddit (for PC hardware r/buildapc, for
-     tech problems r/techsupport) holds many more threads than a brand or enthusiast one. Check posts per day
-     with `find_subreddits` if you are not sure.
+   - Put the **largest** fitting community first, even when a brand or enthusiast subreddit sounds more
+     specific. Help subreddits hold far more threads: r/buildapc gets about 300 posts a day, r/intel and
+     r/overclocking a few dozen. Most old "how do I set X on my Y" threads are in the big help subreddit.
+
+     | Topic | Largest help subreddit to put first |
+     |---|---|
+     | PC hardware, CPUs, GPUs, builds, power and cooling settings | r/buildapc |
+     | Software and device problems | r/techsupport |
+     | Money | r/personalfinance |
+     | Cooking | r/Cooking |
+
+     For other topics, check posts per day with `find_subreddits` and take the busiest fitting one.
    - Write 2 concept groups: the subject with its spellings and model numbers, and the topic words. Example
      for "that thread about coil whine on an RTX 3080":
      `concepts=[["3080","rtx 3080","3080 ti"],["coil whine","buzzing","whine","noise"]]`,

@@ -173,6 +173,9 @@ async def test_budget_truncates_and_says_where_to_continue(client, db, fake_arch
     assert cov["continue_with"]["before"] < PROBE_TIME
     assert any(n.startswith("truncated") and "before=" in n for n in d["notes"])
     assert cov["steps"][0]["resume_before"] == cov["continue_with"]["before"]
+    nxt = d["next_call"]  # the exact arguments for the follow-up call
+    assert nxt["subreddits"] == ["buildapc"] and nxt["before"] == cov["continue_with"]["before"]
+    assert nxt["concepts"] == CONCEPTS and d["notes"][0].startswith("NEXT STEP")
 
 
 async def test_several_subreddits_share_the_budget_and_dedupe(client, db, fake_archive):

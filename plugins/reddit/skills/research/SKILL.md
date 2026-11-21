@@ -70,10 +70,10 @@ depth matters more than breadth.
    topic words. Example for "power limits on an i9 9900K":
    `concepts=[["9900k","i9-9900k","9900kf"],["power limit","PL1","PL2","undervolt","underclock","TDP"]]`,
    `subreddits=["buildapc","intel"]`, `max_requests=60`.
-2. If the result is **truncated** or **stopped early**, call `deep_search` again with the same concepts and
-   subreddits and `before` set to `coverage.continue_with.before` (or the `before=` in the note). Repeat until
-   the search is not truncated or you have made 3 calls. Do this even when you already have some candidates:
-   the thread asked about may be older.
+2. If the result has a **`next_call`** (it is truncated or stopped early), call `deep_search` again with
+   exactly those arguments. They continue the subreddit that is furthest behind, from where it stopped.
+   Repeat while a result has `next_call`, up to 3 calls in all. Do this even when you already have some
+   candidates, and before any web search: the thread asked about may be older.
 3. If the search is still cut short or empty and you have a web search tool, search the web for candidate
    Reddit threads (for example `reddit buildapc i9 9900K power limit underclock`). Take any reddit.com thread
    URLs from the results and read them with `get_thread` (or `get_posts` for several). Claude's web search

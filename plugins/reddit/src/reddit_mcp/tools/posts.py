@@ -1254,9 +1254,10 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         The result lists the candidates, each with `matched: ...`, and a `coverage` report: the
         windows scanned and failed, the requests used, and whether the search was truncated
         (then each unfinished step has a `resume_before`, and `coverage.continue_with.before`).
-        If the result is truncated, call again with that `before` and the same subreddit. If it
-        is still truncated or empty, or the archive is busy, use your web search tool (when you
-        have one) for candidate reddit.com URLs, then read them with get_thread or get_posts.
+        A truncated result has `next_call`: call deep_search again with exactly those arguments
+        (the subreddit furthest behind, from where it stopped), up to 3 calls in all. If it is
+        still truncated or empty, use your web search tool (when you have one) for candidate
+        reddit.com URLs, then read them with get_thread or get_posts.
         """
         if not concepts or not all(isinstance(g, list) and g for g in concepts):
             raise InputError("concepts must be a list of non-empty term groups, e.g. [['9900k'], ['power limit', 'PL1']]")
@@ -1420,6 +1421,20 @@ def register(mcp: Any, ctx: ServerContext) -> None:
             coverage["not_started"] = not_started[:10] + (
                 [f"... and {len(not_started) - 10} more"] if len(not_started) > 10 else [])
         notes = list(state.notes)
+        next_call: dict[str, Any] | None = None
+        active = sorted((st for st in steps if st.status == "active"), key=lambda st: -st.hi)
+        if active:
+            # Go on with the subreddit that is furthest behind, alone, so it gets the whole budget.
+            behind = active[0]
+            next_call = {"concepts": groups, "subreddits": [behind.sub], "before": behind.hi,
+                         "max_requests": max_requests, "in": search_in}
+            if window.after is not None:
+                next_call["after"] = window.after
+            notes.insert(0, (
+                f"NEXT STEP: older posts in r/{behind.sub} were not searched yet (it reached "
+                f"{iso(behind.hi)}). If no candidate is clearly the thread wanted, call deep_search again "
+                "with exactly the arguments in next_call. Do this before a web search."
+            ))
         if busy_stop:
             notes.append(
                 f"stopped early: the archive kept refusing keyword queries (fast HTTP 422, load shedding) "
@@ -1447,8 +1462,9 @@ def register(mcp: Any, ctx: ServerContext) -> None:
                 "the wording differs. Try other terms, a date range, or a web search for candidate "
                 "reddit.com URLs and read them with get_thread or get_posts."
             )
+        extra = {"next_call": next_call} if next_call else {}
         result = await make_result(
-            client, items=out, items_key="candidates", notes=notes,
+            client, items=out, items_key="candidates", notes=notes, **extra,
             concepts=[" OR ".join(g) for g in groups], subreddits=subs, searched=search_in,
             coverage=coverage,
         )

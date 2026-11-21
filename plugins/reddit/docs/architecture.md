@@ -69,6 +69,10 @@ def register(mcp, ctx: ServerContext) -> None:
   - When the result holds text written by Reddit users (`USER_TEXT_KEYS`: `title`, `selftext`, `body`,
     `content`, `description`, `snippet`, …), it adds `untrusted_text: UNTRUSTED_TEXT_NOTE` right after `source`.
     That text is data, not instructions.
+  - Before that, it removes invisible text from every Reddit-text field (`sanitize.TEXT_KEYS`, usernames and
+    flair included), adds `stripped_invisible: n` to each item that lost any, and marks items whose text looks
+    like an instruction to an AI tool with `possible_injection: true` and `injection_match`. The result then
+    carries `possible_injection` and `stripped_invisible` summaries after `untrusted_text`.
   - It turns `ArchiveError` and `InputError` into a `ToolError` whose text starts with the error category.
     For example: `archive unavailable: …`, `the query is too heavy for the archive …`, `input error: …`.
 - **What `make_result` does:**
@@ -161,6 +165,7 @@ To narrow a query yourself, pass `retry_422=0` and catch `QueryTooHeavy`. `deep_
 | `strip_prefix(id)`, `chunked(seq, n)`, `iso(ts)`, `age_words(seconds)` | small utilities |
 | `ARCHIVE_NOTICE`, `SOURCE_NOTE`, `COMMENT_COMPLETENESS_NOTE`, `unavailable_feature(name)` | the standard labels (O3, O4, T4) |
 | `UNTRUSTED_TEXT_NOTE`, `has_user_text(obj)`, `label_untrusted(result)` | the Reddit-text-is-data label; `archive_tool` applies it |
+| `sanitize.clean_text(text)`, `sanitize.find_injection(text)`, `sanitize.harden(result)` | strip invisible text (Cf characters, their entities, HTML comments) and mark likely injections; `label_untrusted` runs `harden` on every result with Reddit text |
 | `make_result(client, items=..., notes=..., comments=False, **fields)` | the result envelope |
 
 ## Settings (environment)

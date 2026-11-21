@@ -216,6 +216,7 @@ Done in `tools/discovery.py`. Tests: `tests/discovery/`. Costs and probe finding
     - Reason: halving did not change the odds of a fast 422, and a fast refusal costs the archive almost nothing ([`docs/deep-search.md`](docs/deep-search.md)).
     - `count_mentions` and `trending_posts` refuse a `max_requests` below one page per stream plus one.
     - Every result with Reddit text carries `untrusted_text`.
+    - Every result with Reddit text has its invisible text removed and counted (`stripped_invisible`), and likely injections marked (`possible_injection`). Search terms never come from local files, environment variables or secrets. Five more mocked injection cases pass 3 of 3 ([`docs/review.md`](docs/review.md), "Prompt-injection hardening").
     - `find_subreddits` asks for slim objects, so it no longer shows archived totals.
 
 ## Out of scope

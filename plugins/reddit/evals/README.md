@@ -45,7 +45,7 @@ cases at 3 of 3. Scores: runs passed with the plugin, and without it (the baseli
 | `most-discussed` | 2 | live | 3/3 | 0/3 |
 | `trending` | 4 | live | 3/3 | 0/3 |
 | `keyboard` | 4 + 5 | live, beats baseline | 3/3 | 0/3 |
-| `find-post` | 2 + 5 | live, beats baseline, WebSearch granted | see RESULTS.md | |
+| `find-post` | 2 + 5 | live, beats baseline, WebSearch granted | 2/3 | 0/3 |
 
 ### Run command of each case
 

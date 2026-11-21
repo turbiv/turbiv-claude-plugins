@@ -193,7 +193,7 @@ All runs used `--allow-tools "mcp__plugin_reddit_reddit__*" WebSearch`. Claude p
 | final, 3 runs | length-based anchors | 1 of 3 | 0 of 3 | the run that found it anchored on `title="power limit"` in r/buildapc. Its answer was good; the `grounded-answer` judge was too strict and has been loosened. Two runs anchored on "multicore enhancement" or "short duration" and found nothing |
 | final rerun | model-number anchors | 0 of 2 | 0 of 2 | the archive shed load: the 240 s waiting cap stopped `deep_search` after 6 and 15 requests. The third run and the baseline arm did not run: the account usage limit was hit |
 
-- **Status:** `find-post` does not meet 2 of 3 yet.
+- **Status (Session 2):** `find-post` did not meet 2 of 3 then. Session 5 got it there; see below.
 - **What the archive path needs:** a quieter archive, or 1–2 subreddits per call.
 - **The fallback** depends on Session 5's skill telling Claude to use web search when the result is truncated.
 
@@ -219,12 +219,14 @@ run loaded the `reddit:research` skill first.
 | dev 1 | fast 422s free, no halving | intel, buildapc | 1 | 28 / 18 / 370 | no: r/buildapc reached 2024-11 |
 | dev 2 | + `next_call` | intel, overclocking | 2 (followed `next_call`) | 25 / 16 / 360 | no: r/buildapc not searched |
 | dev 3 | + "largest subreddit first" | intel, overclocking | 2 | 13 / 10 / 390 | no: r/buildapc not searched |
+| rerun, 3 runs | + the help-subreddit table | buildapc, intel (all 3) | 1, 2, 2 | 48 / 23 / 390; 16 / 13 / 440; 20 / 15 / 470 | **2 of 3**: run 1 in the first call, run 3 through `next_call` |
 
 - **The archive was shedding load all afternoon.** In dev 3, 10 of 13 keyword requests in the first call were
   fast 422s. Only 3 pages came back in 6.5 minutes.
 - **Claude prefers r/intel and r/overclocking** for a power-limit question. `wi7uhk` is in r/buildapc. Before
   the skill named r/buildapc as the first choice for PC hardware, only one run of six included it.
 - **`next_call` works:** from dev 2 on, Claude made the follow-up call with the exact arguments.
+- **Status:** `find-post` meets 2 of 3 and beats the baseline (0 of 3). Both passes came from the archive.
 
 ### Changes made because of these runs
 

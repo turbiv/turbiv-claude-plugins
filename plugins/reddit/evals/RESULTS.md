@@ -25,7 +25,7 @@ bar is 3 of 3 for mocked cases and 2 of 3 for live cases ([`../EVALS.md`](../EVA
 | `most-discussed` | live | 3/3 | 1.00 | 0/3 | 0.39 | yes | $1.55 | 852 s |
 | `trending` | live | 3/3 | 1.00 | 0/3 | 0.60 | yes | $0.74 | 249 s |
 | `keyboard` | live, beats baseline | 3/3 | 1.00 | 0/3 | 0.33 | yes, beats baseline | $0.91 | 383 s |
-| `find-post` | live, beats baseline | first run 0/3 | 0.75 | 0/3 | 0.25 | see below | $1.72 | 1,445 s |
+| `find-post` | live, beats baseline | 2/3 (rerun) | 0.92 | 0/3 | 0.25 | yes, beats baseline | $1.96 | 2,743 s |
 
 ## Notes per case
 
@@ -67,8 +67,28 @@ The bar: 2 of 3 runs with `wi7uhk` returned by a plugin tool and cited, and a hi
   `coverage.continue_with.before` while the result is truncated or stopped early, up to 3 calls.
 - The case timeout went from 1,200 to 2,400 s, because 3 chained calls can take that long.
 
-**Rerun:** see the table below. It is filled in when the rerun is done.
+- After 3 single dev runs (details in [`../docs/deep-search.md`](../docs/deep-search.md), "Session 5"): a
+  truncated `deep_search` result now leads with `next_call`, the exact arguments for the subreddit that is
+  furthest behind. The skill puts the largest help subreddit first, with a short table (r/buildapc for PC
+  hardware), and uses a neutral example (an RTX 3080 coil-whine thread), not the eval's own concepts.
+
+**Rerun, 13:39–14:25 UTC (commit `aba19ba`):** 2 of 3, score 0.92 with the plugin,
+0 of 3 (0.25) without. The bar is met and the case beats the baseline.
 
 | Run set | With the plugin | Without | Notes |
 |---|---|---|---|
 | first (12:31 UTC) | 0/3 (0.75) | 0/3 (0.25) | one `deep_search` call each; archive busy; web search had no reddit.com links |
+| rerun (13:39 UTC) | 2/3 (0.92) | 0/3 (0.25) | all 3 runs chose `["buildapc", "intel"]` |
+
+Rerun, per run:
+
+| Run | deep_search calls | First call: requests / fast 422s / s waited | wi7uhk | How |
+|---|---|---|---|---|
+| 1 | 1 | 48 / 23 / 390 | found, cited | the first call reached 2022-08 in r/buildapc |
+| 2 | 2 | 16 / 13 / 440 | not found | both calls stopped on the waiting cap (the archive refused 21 of 26 requests); the web search had no reddit.com links |
+| 3 | 2 | 20 / 15 / 470 | found, cited | the `next_call` for r/buildapc reached it |
+
+- Both passes came from the archive, not from the web search.
+- **The skill changed after the suite run** (the "Finding one specific or old thread" section and one line
+  of the server instructions). Only `find-post` was rerun, as the task asked; the other cases were scored with
+  the earlier skill text.

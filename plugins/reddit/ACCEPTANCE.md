@@ -202,8 +202,8 @@ Done in `tools/discovery.py`. Tests: `tests/discovery/`. Costs and probe finding
   - what is not possible: hot, relevance, global search, live scores
   - the March 2027 risk
   - personal, non-commercial use only (L3)
-- [ ] Run the full eval suite with `claude plugin eval plugins/reddit`. Every case in [`EVALS.md`](EVALS.md) meets its pass rate, and the "beats baseline" cases beat the no-plugin run. Record the scores in `plugins/reddit/evals/RESULTS.md`.
-  - Scores: [`evals/RESULTS.md`](evals/RESULTS.md). The runner is [`evals/run-suite.sh`](evals/run-suite.sh): one command per case, because only `find-post` gets WebSearch.
+- [x] Run the full eval suite with `claude plugin eval plugins/reddit`. Every case in [`EVALS.md`](EVALS.md) meets its pass rate, and the "beats baseline" cases beat the no-plugin run. Record the scores in `plugins/reddit/evals/RESULTS.md`.
+  - Done: all 15 cases meet their bar, and `read-post`, `keyboard` and `find-post` beat the baseline. `find-post` passed 2 of 3 on its rerun, both times from the archive. `thread-follow-up` passed 2 of 3 (live bar). Scores: [`evals/RESULTS.md`](evals/RESULTS.md). The runner is [`evals/run-suite.sh`](evals/run-suite.sh): one command per case, because only `find-post` gets WebSearch.
 - [x] End-to-end: install the plugin from the marketplace in a fresh Claude Code session, then run the `read-post`, `find-post` and `keyboard` prompts by hand.
   - Done as far as possible before the push: `claude plugin marketplace add <this checkout>` and `claude plugin install reddit@turbiv-claude-plugins` in an empty `CLAUDE_CONFIG_DIR` worked, and `claude plugin list` showed the plugin enabled. That config has no login, so the three prompts ran through the eval runner instead, which starts a fresh Claude Code session with the plugin for every run (see `RESULTS.md`).
   - **Left for after the push:** install from GitHub (`claude plugin marketplace add turbiv/turbiv-claude-plugins`) once and ask one question.

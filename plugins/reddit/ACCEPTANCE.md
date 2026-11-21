@@ -12,7 +12,7 @@ The only data source is the Arctic Shift archive API. Reddit's own keyless route
 - New API keys closed on 2026-10-31.
 
 Background and the full constraint list (IDs D1, R1, E1, T1, O1, L1, ...):
-[`reports/Keyless Reddit MCP sources.md`](../../reports/Keyless%20Reddit%20MCP%20sources.md), section "Design constraints".
+[`docs/research/synthesis.md`](docs/research/synthesis.md) (the notes behind it are in the same folder), section "Design constraints".
 Each session reads that section before it starts.
 
 ## Stack

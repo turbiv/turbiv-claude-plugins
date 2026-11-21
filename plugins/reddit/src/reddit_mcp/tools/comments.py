@@ -1,6 +1,6 @@
 """Session 3: get_thread, expand_comments, get_comment_context, search_comments.
 
-Rules from `reports/Keyless Reddit MCP sources.md` (Design constraints):
+Rules from `docs/research/synthesis.md` (Design constraints):
 
 - T9: the thread tool reads `comments/tree` with a bounded `limit` and returns `more` stubs with
   child IDs; `expand_comments` loads them from the same (cached) tree or with `tree?parent_id=`.

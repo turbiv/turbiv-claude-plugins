@@ -4,7 +4,7 @@ trending_posts, count_mentions.
 Only Session 4 edits this file (plus its tests under tests/discovery/ and its eval cases).
 Import shared code from `reddit_mcp.arctic`; do not change it. See docs/architecture.md.
 
-Design notes (rules from `reports/Keyless Reddit MCP sources.md`, probes in docs/probes.md and
+Design notes (rules from `docs/research/synthesis.md`, probes in docs/probes.md and
 docs/discovery-costs.md):
 
 - Archive keyword search and the aggregate endpoints are unreliable under load (a comment

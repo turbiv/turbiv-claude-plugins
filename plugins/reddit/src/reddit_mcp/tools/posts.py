@@ -3,7 +3,7 @@
 Only Session 2 edits this file (plus its tests under tests/posts/ and its eval cases).
 Import shared code from `reddit_mcp.arctic`; do not change it. See docs/architecture.md.
 
-Rules from `reports/Keyless Reddit MCP sources.md` that this module carries:
+Rules from `docs/research/synthesis.md` that this module carries:
 
 - T1: `new`/`old` are the archive's own order, paged by `created_utc` and de-duplicated by `id`.
 - T2/T3: `top`, `comments` and `controversial` are computed here over a bounded window; the

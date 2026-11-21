@@ -1,6 +1,6 @@
 """The Arctic Shift HTTP client. Every request the server makes goes through `ArcticShiftClient`.
 
-What it enforces, with the rule IDs from `reports/Keyless Reddit MCP sources.md`:
+What it enforces, with the rule IDs from `docs/research/synthesis.md`:
 
 - D1/E5: only the configured archive and status hosts, never a Reddit host.
 - R1/R2: one request in flight, at least `min_interval` seconds between requests.

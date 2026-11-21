@@ -1,7 +1,7 @@
 {
   "name": "context-band",
-  "version": "0.2.3",
-  "description": "Band above the prompt: context fill, plan usage (5h/7d) on a subscription or USD on API billing, and Spotify's current track",
+  "version": "0.3.0",
+  "description": "Band above the prompt: what the session is running, context fill, plan usage (5h/7d) on a subscription or USD on API billing, and Spotify's current track",
   "author": {
     "name": "Ivan Turbin"
   },

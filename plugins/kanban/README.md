@@ -6,6 +6,8 @@ you left off and what comes next. Cards you have not touched for a while stand o
 The board is a page on claude.ai (an artifact). You open it by its link, on any device. Claude keeps it
 current: a small hook notes each session, and a sync turns the sessions into card updates.
 
+![kanban: the board page with Ideas, Todo, Doing and Done columns, repo filter chips, and cards that each show where they stand, the next step and their repos](docs/board.webp)
+
 ## What you get
 
 - **A board** with four columns: Ideas, Todo, Doing, Done. One card is one lasting work stream, such as

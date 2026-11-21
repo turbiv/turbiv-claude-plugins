@@ -9,10 +9,37 @@ plugins from it.
 | Plugin | What it does | How to use it |
 |---|---|---|
 | [flow](plugins/flow/README.md) | Takes a goal to an approved, binding spec, with one decision table and an always-on validator | `/flow:start <goal>`, then `/flow:status` to resume. Each stage also runs alone |
-| [context-band](plugins/context-band/README.md) | Band above the prompt in the Claude apps: context fill, plan usage (5h/7d) or USD, and Spotify's current track | Nothing to run: it shows once installed. Apps only, not the terminal |
+| [context-band](plugins/context-band/README.md) | Band above the prompt in the Claude apps: what the session is running (a pixel crab acts it out), context fill, plan usage (5h/7d) or USD, and Spotify's current track | Nothing to run: it shows once installed. Apps only, not the terminal |
 | [kanban](plugins/kanban/README.md) | A kanban board of your work streams that updates itself from your Claude sessions. Each card says where you left off and what comes next | `/kanban:setup` once, then `/kanban:sync` to update and `/kanban:board` to ask or change |
+| [openai-images](plugins/openai-images/README.md) | Generate and edit images with OpenAI's GPT Image models, with the cost of every image shown. Needs an OpenAI API key and `uv` | `/openai-images:image <idea>`, or ask for an image. Enter the key once with `/plugin configure openai-images` |
+| [reddit](plugins/reddit/README.md) | Free, keyless, read-only Reddit research through the Arctic Shift archive: search, threads, subreddits, users and mention counts, with honest labels for what an archive cannot do. Needs `uv` | Ask Claude what Reddit says, e.g. "what is the most recommended mechanical keyboard on Reddit in the last 3 months?", or `/reddit:research <question>` |
 
 Each plugin's README says what it needs and how to use it. Read it before installing.
+
+## Screenshots
+
+### context-band
+
+The band in the desktop app while the session runs two shell commands:
+
+![context-band: a crab with a badge of 2 and "2 shells running", then context fill, plan usage and the current Spotify track](plugins/context-band/docs/band-shells.webp)
+
+The same band with the count opened, listing each command:
+
+![context-band: the band above, with a list under it of the two running shell commands](plugins/context-band/docs/band-shells-list.webp)
+
+### kanban
+
+The board page, filtered to all repos:
+
+![kanban: the board page with Ideas, Todo, Doing and Done columns, repo filter chips, and cards that each show where they stand, the next step and their repos](plugins/kanban/docs/board.webp)
+
+### openai-images
+
+An image the plugin made from `/openai-images:image a poster that says "Hello World" in bold letters on a
+sunset background`, for $0.011:
+
+<img src="plugins/openai-images/docs/example-hello-world.jpg" alt="openai-images example: a portrait poster with bold white &quot;Hello World&quot; over a sunset at sea" width="200">
 
 ## Install
 
@@ -30,6 +57,18 @@ Then install the plugin you want:
 
 ```text
 /plugin install kanban@turbiv-claude-plugins
+```
+
+```text
+/plugin install context-band@turbiv-claude-plugins
+```
+
+```text
+/plugin install openai-images@turbiv-claude-plugins
+```
+
+```text
+/plugin install reddit@turbiv-claude-plugins
 ```
 
 Start a new Claude Code session, and the plugin's commands and hooks are on. To see, turn off or remove plugins, run

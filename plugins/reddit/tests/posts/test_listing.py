@@ -178,7 +178,7 @@ async def test_search_sends_one_keyword_and_filters_locally(client, db, fake_arc
     d = r.data
     assert [p["id"] for p in d["items"]] == ["hit"]
     sent = search_params(fake_archive)[0]
-    assert sent["query"] == '"power limit"'
+    assert sent["query"] == "9900k"
     assert not {"title", "selftext"} & set(sent)
     assert d["method"][0]["method"].startswith("archive keyword search")
     assert any("applied locally" in n for n in d["notes"])

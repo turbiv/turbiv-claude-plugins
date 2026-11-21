@@ -705,14 +705,19 @@ def query_matches(q: Query, item: Mapping[str, Any], satisfied: set[int] = froze
 
 
 def _specificity(value: str) -> float:
+    """How narrow a term is as an archive anchor. A model number ('9900k', 'i9-9900K') beats
+    any phrase: it is rare, and a post about the thing must name it. Length counts a little,
+    up to 12 letters, so a long phrase from a synonym list does not win on length alone."""
     toks = tokens(value)
     if not toks or all(t in _STOPWORDS for t in toks):
         return -1.0
-    score = float(len(value))
-    if any(ch.isdigit() for ch in value):
-        score += 6
+    score = min(len("".join(toks)), 12) * 0.5
+    if _core(toks):
+        score += 20
+    elif any(ch.isdigit() for ch in value):
+        score += 8
     if len(toks) > 1:
-        score += 4
+        score += 1
     return score
 
 
@@ -832,16 +837,18 @@ class DeepState:
 
 
 def _anchor_terms(concepts: list[list[str]]) -> tuple[int, list[str]]:
-    """The concept group with the most specific term, and its distinct archive values, most
-    specific first."""
-    best_group, best = 0, -2.0
+    """The anchor group and its distinct archive values.
+
+    The anchor is the group with the most specific term (a smaller group wins a tie: it is
+    tighter). Its terms keep the caller's order, because in a synonym list the first term is
+    usually the main one ('chatter' before 'double typing')."""
+    best_group, best = 0, (-2.0, 0)
     for gi, group in enumerate(concepts):
-        for term in group:
-            s = _specificity(term)
-            if s > best:
-                best_group, best = gi, s
+        key = (max(_specificity(t) for t in group), -len(group))
+        if key > best:
+            best_group, best = gi, key
     values: list[str] = []
-    for term in sorted(concepts[best_group], key=_specificity, reverse=True):
+    for term in concepts[best_group]:
         if _specificity(term) <= 0:
             continue
         v = _archive_value(term)

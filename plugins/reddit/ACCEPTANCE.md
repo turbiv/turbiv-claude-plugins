@@ -118,6 +118,10 @@ Session 1 runs first. Sessions 2, 3 and 4 can run in parallel after it, because 
     - The comment step sends the anchor group's terms joined with `OR`. After two 422s it falls back to the single most specific term, because comment search syntax is not probed yet.
     - Model names go to the archive by their 3+-digit token (`i9-9900K` is sent as `9900k`). Fuzzy matching applies only to words of 5+ letters with no digits, so `9700k` never matches `9900k`. The matching uses `difflib` from the standard library, because adding `rapidfuzz` would change the shared `pyproject.toml`.
     - **Ranking refinement:** concept coverage first, then how many groups matched in the **title**, then the comment count. Reason: `num_comments` is a frozen early snapshot (`wi7uhk` shows 2, but has 22 archived comments). Without this tie-break, a thread that names both concepts in its title ranks below busy threads that mention one concept in the body.
+    - Every distinct term of the anchor group is walked in turn: titles first, then title + selftext.
+    - **Fast-422 refinement:** the pause grows from 10 s to 20, 40 and at most 60 s while fast 422s go on, and
+      resets after a success. The live 422s came in bursts. After 240 s of waiting, the call stops and says the
+      archive is busy.
     - A truncated result gives each unfinished step's `resume_before` and says how to continue per subreddit.
     - Live measurement: [`docs/deep-search.md`](docs/deep-search.md).
 - [x] Results from several subreddits are merged and de-duplicated by `id`.

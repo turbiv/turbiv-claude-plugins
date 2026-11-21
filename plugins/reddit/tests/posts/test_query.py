@@ -33,9 +33,19 @@ def test_operators_map():
 
 def test_only_one_keyword_goes_to_the_archive():
     plan = plan_query(parse_query('9900k "power limit" undervolt OR underclock -laptop'), ["buildapc"])
-    assert plan.keyword == ("query", '"power limit"')  # the most specific single-term clause
+    assert plan.keyword == ("query", "9900k")  # a model number is the most specific anchor
     local = plan.notes[0]
-    assert "9900k" in local and "undervolt OR underclock" in local and "-laptop" in local
+    assert '"power limit"' in local and "undervolt OR underclock" in local and "-laptop" in local
+
+
+def test_anchor_group_and_order():
+    from reddit_mcp.tools.posts import _anchor_terms
+    # the long phrase in the synonym group must not win over the model number
+    g, terms = _anchor_terms([["power limit", "multicore enhancement", "short duration"], ["9900k", "i9-9900k", "9900kf"]])
+    assert g == 1 and terms == ["9900k", "9900kf"]
+    # a synonym group keeps the caller's order
+    g, terms = _anchor_terms([["chatter", "chattering", "double typing", "double clicking"]])
+    assert terms[:2] == ["chatter", "chattering"]
 
 
 def test_model_names_are_sent_by_their_core():

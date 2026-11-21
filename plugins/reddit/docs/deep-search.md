@@ -130,7 +130,8 @@ The probe called `subreddits=["buildapc"]`, `after=2022-01-01`, `before=17082928
   - The 10 s wait after a fast 422 rarely helped: 2 of 10 retries succeeded.
   - Halving the window did not change the odds of a fast 422. The successes came at all window sizes.
   - This fits probes Q7: a fast 422 is server load, not query size.
-  - The rule stays as written, because the data is thin. A longer pause may help: see "Changes" below.
+  - The 422s came in bursts: requests 3–11 and 20–29 failed almost all in a row, and requests 12–19 mostly
+    succeeded. So the pause now grows while the failures go on: see "Changes" below.
 
 ### The web-search path
 
@@ -167,6 +168,14 @@ with `fields=id,created_utc` was fetched at two dates:
   subreddit at a time.
 - **The docstring:** it now says that subreddits share the budget. 2–3 subreddits, most likely first, are best,
   and `in='both'` divides the budget again.
+- **The pause after a fast 422 grows:** 10 s, then 20, 40 and at most 60 s while fast 422s go on, and back to
+  10 s after a success.
+  - A burst of load shedding then costs fewer requests of the budget, and more time.
+  - The rule from probes Q7 still holds: wait at least 10 s and retry the same window once. Halve after a
+    second fast 422.
+  - After 240 s of waiting in one call, `deep_search` stops and says the archive is busy.
+  - The coverage report shows `seconds_waited_after_422`.
+  - This is not measured live yet. The probe budget was spent before the change.
 - **Every distinct term of the anchor group is walked in turn,** not only the most specific one. Before this
   change, a single synonym group such as `chatter / double typing / …` searched only the first term. The
   `search-syntax` eval run showed this.

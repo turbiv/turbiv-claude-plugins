@@ -197,6 +197,20 @@ async def test_search_422_falls_back_to_a_labelled_local_scan(client, db, fake_a
     assert "title" in sent[0] and "title" not in sent[-1]
 
 
+async def test_search_fallback_samples_a_long_window_evenly(client, db, fake_archive):
+    # 2,000 posts over the year, 3 of them match: spread across the year
+    db.add(*[post(f"y{i}", "MechanicalKeyboards", age_days=5 + i * 0.18, flair="Help",
+                  title="key chatter again" if i in (10, 900, 1900) else "keycap question") for i in range(2000)])
+    db.fail = lambda p: (422, {"error": "Timeout. Maybe slow down a bit"}) if "query" in p else None
+    r = await call(client, "search_posts", {"subreddits": ["MechanicalKeyboards"], "query": "flair:Help chatter",
+                                            "time": "year", "max_pages": 6})
+    m = r.data["method"][0]
+    assert m["partial"] is True and m["pages"] == 6 and "sample" in m["coverage"]
+    windows = [p for p in search_params(fake_archive) if "query" not in p]
+    assert all(p["link_flair_text"] == "Help" for p in windows)
+    assert min(int(p["after"]) for p in windows) < PROBE_TIME - 300 * DAY
+
+
 async def test_search_flair_and_year_window(client, db, fake_archive):
     in_2025 = PROBE_TIME - 330 * DAY  # 2025-12-25
     db.add(post("h", "MechanicalKeyboards", title="key chatter help", flair="Help"),

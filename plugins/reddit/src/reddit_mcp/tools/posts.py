@@ -78,10 +78,13 @@ LIST_TEXT_CHARS = 300
 
 # deep_search
 FAST_422_WAIT = 10.0  # docs/probes.md, Q7
+MAX_422_WAIT = 60.0
+MAX_TOTAL_WAIT = 240.0  # stop a deep_search that has waited this long on a busy archive  # the wait doubles after each fast 422 in a row (docs/deep-search.md)
 MIN_WINDOW = 86400  # do not halve a window below one day
 MAX_FAILED_WINDOWS = 3  # skipped windows in a row before a step gives up
 FUZZY_RATIO = 0.85
 DEEP_TEXT_CHARS = 300
+MAX_ANCHORS = 4  # distinct terms of the anchor group sent to the archive, in turn
 
 _SUB_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_]{1,20}$")
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -336,7 +339,7 @@ async def _scan(
        slices and take the newest page of each, so the sample covers the whole window rather
        than only its newest days.
     """
-    base = {"subreddit": sub, **(extra or {})}
+    base = {k: v for k, v in {"subreddit": sub, **(extra or {})}.items() if v is not None and v != ""}
     lo = window.after if window.after is not None else ARCHIVE_START
     hi = window.before if window.before is not None else int(now)
     scan = Scan(subreddit=sub)
@@ -824,6 +827,8 @@ class DeepState:
     failed: list[dict[str, Any]] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     cache_hits: int = 0
+    wait: float = FAST_422_WAIT  # pause after the next fast 422; doubles while they continue
+    waited: float = 0.0
 
 
 def _anchor_terms(concepts: list[list[str]]) -> tuple[int, list[str]]:
@@ -858,10 +863,15 @@ async def _deep_step(client: ArcticShiftClient, st: Step, state: DeepState, now:
     try:
         resp = await client.get(st.path, params, fields=fields, retry_422=0)
     except QueryTooHeavy as e:
-        if e.fast and not st.fast_retry:
-            st.fast_retry = True
-            await _sleep(client, FAST_422_WAIT)
-            return
+        if e.fast:
+            # The archive sheds load in bursts of about 30-60 s: pause longer each time, so
+            # fewer requests of the budget go into the burst.
+            await _sleep(client, state.wait)
+            state.waited += state.wait
+            state.wait = min(state.wait * 2, MAX_422_WAIT)
+            if not st.fast_retry:
+                st.fast_retry = True
+                return
         st.fast_retry = False
         if st.kind == "body" and " OR " in st.value:
             # The OR form failed twice: fall back to the single most specific term.
@@ -882,6 +892,7 @@ async def _deep_step(client: ArcticShiftClient, st: Step, state: DeepState, now:
         return
     if client.request_count == before_count:
         state.cache_hits += 1
+    state.wait = FAST_422_WAIT
     st.fast_retry = False
     st.failed_in_row = 0
     st.pages += 1
@@ -1064,7 +1075,8 @@ def register(mcp: Any, ctx: ServerContext) -> None:
           `method` says what the archive matched and what was filtered locally.
         - The archive's keyword search often times out under load. Then the tool lists the
           window without the keyword and filters it locally (`method` says "local scan",
-          `partial: true`): matches outside the scanned pages are missed. Narrow the window then.
+          `partial: true`; a big window is sampled evenly): matches outside the scanned pages are
+          missed. Then narrow the window, or raise max_pages (up to 30).
         - sort: 'new' (default), 'old', or 'top'/'comments' ranked here over the matches found
           (max_pages pages of 100). 'relevance' and 'hot' are not possible.
         - time / after / before: as in list_posts; absolute dates are best ('2025', '2025-03-01').
@@ -1092,6 +1104,37 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         want = limit if s in NATIVE_SORTS else None
         scopes = plan.subreddits or [None]
         per_scope = max(1, max_pages // len(scopes))
+        async def local_scan(sub: str | None, base: dict[str, Any], win: Window, pages: int,
+                             info: dict[str, Any]) -> list[dict[str, Any]]:
+            """List `win` with the archive's non-keyword filters and match the query here. Newest
+            first, a window too big for `pages` is sampled evenly (labelled), not cut at its newest days."""
+            if order == "asc" or win.after is None:  # no start date: newest first, not a 20-year sample
+                w = await _walk(client, base, win, order=order, fields=LIST_FIELDS, max_pages=pages,
+                                want=want, keep=keep_local, seen=seen)
+                info.update(pages=w.pages, complete=w.exhausted, partial=not w.exhausted, posts_scanned=w.scanned)
+                if not w.exhausted and w.reached is not None:
+                    info["scanned_up_to" if order == "asc" else "scanned_back_to"] = iso(w.reached)
+                if sub and w.scanned == 0 and not plan.params:
+                    empty_listings.append(sub)
+                return w.items
+            extra = {k: v for k, v in base.items() if k != "subreddit"}
+            sc = await _scan(client, sub or "", win, now=now, pages=pages, fields=LIST_FIELDS, full=False, extra=extra)
+            fresh = []
+            for x in sc.items:
+                xid = strip_prefix(x.get("id"))
+                if xid in seen:
+                    continue
+                seen.add(xid)
+                if keep_local(x):
+                    fresh.append(x)
+            info.update(pages=sc.pages, complete=sc.complete, partial=not sc.complete, posts_scanned=len(sc.items))
+            if not sc.complete:
+                info["coverage"] = sc.method
+                info["estimated_posts_in_window"] = sc.estimated_total
+            if sub and not sc.items and not plan.params:
+                empty_listings.append(sub)
+            return fresh
+
         satisfied_local = plan.satisfied - {plan.keyword_clause}
         keep_kw = lambda x: query_matches(q, x, plan.satisfied)  # noqa: E731
         keep_local = lambda x: query_matches(q, x, satisfied_local)  # noqa: E731
@@ -1116,29 +1159,21 @@ def register(mcp: Any, ctx: ServerContext) -> None:
                     if partial.reached is not None:
                         resume = (Window(window.after, partial.reached + 1, "") if order == "desc"
                                   else Window(partial.reached - 1, window.before, ""))
-                    walk = await _walk(client, base, resume, order=order, fields=LIST_FIELDS,
-                                       max_pages=max(1, per_scope - partial.pages), want=want,
-                                       keep=keep_local, seen=seen)
                     info["method"] = (
                         f"local scan (T6): the archive's keyword search ({plan.keyword[0]}={plan.keyword[1]}) "
                         f"failed with HTTP 422 ({'archive busy' if e.fast else 'timeout'}), so the tool "
                         "listed the window and matched the whole query locally"
                     )
-                    info["partial"] = not walk.exhausted
-                    info["posts_scanned"] = walk.scanned
-            if walk is None:
-                walk = await _walk(client, base, window, order=order, fields=LIST_FIELDS,
-                                   max_pages=per_scope, want=want, keep=keep_local, seen=seen)
+                    matched += await local_scan(sub, base, resume, max(1, per_scope - partial.pages), info)
+                    methods.append(info)
+                    continue
+                matched += walk.items
+                info.update(pages=walk.pages, complete=walk.exhausted)
+                if not walk.exhausted and walk.reached is not None:
+                    info["scanned_back_to" if order == "desc" else "scanned_up_to"] = iso(walk.reached)
+            else:
                 info["method"] = "listing with the archive filters, matched locally"
-                info["partial"] = not walk.exhausted
-                info["posts_scanned"] = walk.scanned
-                if sub and walk.scanned == 0 and not plan.params:
-                    empty_listings.append(sub)
-            matched += walk.items
-            info["pages"] = walk.pages
-            info["complete"] = walk.exhausted
-            if not walk.exhausted and walk.reached is not None:
-                info["scanned_back_to" if order == "desc" else "scanned_up_to"] = iso(walk.reached)
+                matched += await local_scan(sub, base, window, per_scope, info)
             methods.append(info)
         if s in COMPUTED_SORTS:
             pool = [x for x in matched if _is_final(x, now)]
@@ -1182,14 +1217,17 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         - concepts: AND of OR groups that you write, e.g.
           [["9900k", "i9-9900k", "9900kf"], ["power limit", "PL1", "PL2", "undervolt", "TDP"]].
           Put model names, synonyms and spellings in the groups.
-        - subreddits: 1-8 fitting subreddits (e.g. buildapc, intel, overclocking).
+        - subreddits: 1-8 fitting subreddits, most likely first (e.g. buildapc, intel,
+          overclocking). They share max_requests, so each extra subreddit makes every search
+          shallower: 2-3 is best. For an old post, prefer fewer subreddits or an after/before range.
         - after / before: an optional date range (epoch seconds or '2022', '2022-08-01').
-        - in: 'posts' (title, then title+selftext), 'comments' (comment bodies, grouped by post),
-          or 'both'.
+        - in: 'posts' (default and cheapest: title, then title+selftext), 'comments' (comment
+          bodies, grouped by post), or 'both' (splits the budget again).
         - max_requests: archive requests to spend (1-60, default 30). One request is one page of
           100 items; the archive is slow, so 30 requests take one to several minutes.
 
-        How it works: the most specific term goes to the archive as one keyword, and the tool
+        How it works: the group with the most specific term is the anchor. Its distinct terms go to
+        the archive one at a time, as one keyword (most specific first), and the tool
         walks back through time windows (100 items per page), halving a window when the archive
         times out. It then matches every concept group locally on title, selftext and matched
         comments, with model-name normalization (i9-9900K = i9 9900k = 9900k) and typo tolerance,
@@ -1197,8 +1235,9 @@ def register(mcp: Any, ctx: ServerContext) -> None:
 
         The result lists the candidates, each with `matched: ...`, and a `coverage` report: the
         windows scanned and failed, the requests used, and whether the search was truncated
-        (then `continue_with` gives a `before` to resume from). If the post you expect is not
-        found, a web search for candidate Reddit URLs, read through get_posts, is a fallback.
+        (then each unfinished step has a `resume_before`). If the result is truncated and no
+        candidate is clearly the thread wanted, run a web search for candidate Reddit URLs and
+        read them through get_posts.
         """
         if not concepts or not all(isinstance(g, list) and g for g in concepts):
             raise InputError("concepts must be a list of non-empty term groups, e.g. [['9900k'], ['power limit', 'PL1']]")
@@ -1214,7 +1253,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
             raise InputError("at most 8 subreddits")
         if not isinstance(max_requests, int) or not 1 <= max_requests <= 60:
             raise InputError("max_requests must be 1-60")
-        _check_limit(limit, 30)
+        _check_limit(limit, 50)
         now = _now(client)
         window = resolve_window(None, after, before, now=now)
         lo = window.after if window.after is not None else ARCHIVE_START
@@ -1228,28 +1267,39 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         budget_end = start + max_requests
         state = DeepState()
 
+        alts = anchors[:MAX_ANCHORS]
         steps: list[Step] = []
         for sub in subs:
             if search_in in ("posts", "both"):
-                steps.append(Step(sub, "title", primary, lo, hi))
-                steps.append(Step(sub, "query", primary, lo, hi))
+                # Every distinct term of the anchor group in the title, then in title + selftext.
+                steps += [Step(sub, "title", a, lo, hi) for a in alts]
+                steps += [Step(sub, "query", a, lo, hi) for a in alts]
             if search_in in ("comments", "both"):
-                alts = [a for a in anchors[:4]]
                 body = " OR ".join(alts) if len(alts) > 1 else primary
                 steps.append(Step(sub, "body", body, lo, hi))
-        # Activation: a subreddit's 'query' walk starts when its 'title' walk ends.
+
+        # Within a subreddit the posts steps run one after another; subreddits (and the
+        # comment step) take turns, one request each.
         def runnable(st: Step) -> bool:
             if st.status in ("done", "gave up"):
                 return False
-            if st.kind == "query":
-                title = next(x for x in steps if x.sub == st.sub and x.kind == "title")
-                return title.status in ("done", "gave up")
+            if st.kind == "body":
+                return True
+            for x in steps:
+                if x is st:
+                    return True
+                if x.sub == st.sub and x.kind != "body" and x.status not in ("done", "gave up"):
+                    return False
             return True
 
         reserve = 1 if search_in != "posts" else 0  # posts/ids for comment hits
         max_steps = max_requests * 4  # bounds the loop when the cache answers
         n_steps = 0
+        busy_stop = False
         while n_steps < max_steps and client.request_count < budget_end - reserve:
+            if state.waited >= MAX_TOTAL_WAIT:
+                busy_stop = True
+                break
             ready = [st for st in steps if runnable(st)]
             if not ready:
                 break
@@ -1330,9 +1380,10 @@ def register(mcp: Any, ctx: ServerContext) -> None:
             "requests_used": used,
             "max_requests": max_requests,
             "answered_from_cache": state.cache_hits,
+            "seconds_waited_after_422": round(state.waited),
             "truncated": truncated,
             "window": Window(lo if window.after is not None else None, window.before, "").describe(),
-            "archive_term": primary,
+            "archive_terms": alts,
             "posts_examined": len(state.posts),
             "comments_examined": sum(len(v) for v in state.comments.values()),
             "full_matches": sum(1 for c in candidates if c[0] == len(groups)),
@@ -1344,6 +1395,11 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         if not_started:
             coverage["not_started"] = not_started
         notes = list(state.notes)
+        if busy_stop:
+            notes.append(
+                f"stopped early: the archive kept refusing keyword queries (fast HTTP 422, load shedding) "
+                f"and the tool had waited {state.waited:.0f} s. Try again in a few minutes."
+            )
         if truncated:
             notes.append(
                 "truncated: the request budget ran out before every subreddit was searched back to the "

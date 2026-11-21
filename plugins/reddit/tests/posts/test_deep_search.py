@@ -47,6 +47,7 @@ async def test_finds_an_old_post_by_walking_back(client, db, fake_archive):
     assert cov["requests_used"] <= 30
     title_step = cov["steps"][0]
     assert title_step["step"] == "title=9900k" and title_step["status"] == "done" and title_step["pages"] == 3
+    assert [s["step"] for s in cov["steps"]] == ["title=9900k", "title=9900kf", "query=9900k", "query=9900kf"]
     first = sent(fake_archive)[0]
     assert first["title"] == "9900k" and first["limit"] == "100" and first["sort"] == "desc"
     # then the same term as query (title + selftext)
@@ -111,6 +112,22 @@ async def test_second_fast_422_halves_the_window(client, db, fake_archive):
     assert int(titles[2]["before"]) - int(titles[2]["after"]) == full // 2
 
 
+async def test_fast_422_waits_grow_and_reset(client, db, fake_archive, fake_time):
+    db.add(post("hit", title="9900k power limit", age_days=10))
+    calls = {"n": 0}
+
+    def fail(p):
+        if p.get("title") and calls["n"] < 3:
+            calls["n"] += 1
+            return (422, {"error": "Timeout. Maybe slow down a bit"})
+        return None
+
+    db.fail = fail
+    d = (await deep(client, after="2020-01-01")).data
+    assert [w for w in fake_time.sleeps if w >= 10] == [10.0, 20.0, 40.0]
+    assert d["coverage"]["seconds_waited_after_422"] == 70
+
+
 async def test_slow_422_halves_at_once(client, db, fake_archive, fake_time):
     db.add(post("hit", title="9900k power limit", age_days=10))
     calls = {"n": 0}
@@ -138,6 +155,8 @@ async def test_always_failing_archive_stays_in_budget_and_reports(client, db, fa
     assert cov["requests_used"] <= 12
     assert d["candidates"] == []
     assert any("web search" in n for n in d["notes"])
+    assert cov["seconds_waited_after_422"] <= 240 + 60
+    assert any(n.startswith("stopped early") for n in d["notes"])
 
 
 async def test_budget_truncates_and_says_where_to_continue(client, db, fake_archive):

@@ -196,3 +196,40 @@ All runs used `--allow-tools "mcp__plugin_reddit_reddit__*" WebSearch`. Claude p
 - **Status:** `find-post` does not meet 2 of 3 yet.
 - **What the archive path needs:** a quieter archive, or 1–2 subreddits per call.
 - **The fallback** depends on Session 5's skill telling Claude to use web search when the result is truncated.
+
+## Session 5: find-post with the research skill
+
+**Fact:** run on 2026-11-21 between 12:31 and 14:00 UTC with Claude Code 2.1.311, `WebSearch` granted. Every
+run loaded the `reddit:research` skill first.
+
+### The web-search fallback cannot reach reddit.com
+
+- Claude's WebSearch returns no reddit.com results. With `allowed_domains: ["reddit.com"]` it fails with
+  HTTP 400: "The following domains are not accessible to our user agent: ['reddit.com']".
+- Plain queries such as `reddit buildapc "9900K" underclocking power limit experiments` return AnandTech,
+  TechPowerUp, TechSpot and forums, and no Reddit thread.
+- So in this setup the fallback the EVALS.md row allows does not work. The plugin must find `wi7uhk` from the
+  archive.
+
+### Runs
+
+| Run | Code | Subreddits Claude chose | deep_search calls | Requests counted / fast 422s / s waited (first call) | wi7uhk |
+|---|---|---|---|---|---|
+| suite, 3 runs | skill v1 | 2 per call (intel first) | 1 each | not kept | no (0 of 3) |
+| dev 1 | fast 422s free, no halving | intel, buildapc | 1 | 28 / 18 / 370 | no: r/buildapc reached 2024-11 |
+| dev 2 | + `next_call` | intel, overclocking | 2 (followed `next_call`) | 25 / 16 / 360 | no: r/buildapc not searched |
+| dev 3 | + "largest subreddit first" | intel, overclocking | 2 | 13 / 10 / 390 | no: r/buildapc not searched |
+
+- **The archive was shedding load all afternoon.** In dev 3, 10 of 13 keyword requests in the first call were
+  fast 422s. Only 3 pages came back in 6.5 minutes.
+- **Claude prefers r/intel and r/overclocking** for a power-limit question. `wi7uhk` is in r/buildapc. Before
+  the skill named r/buildapc as the first choice for PC hardware, only one run of six included it.
+- **`next_call` works:** from dev 2 on, Claude made the follow-up call with the exact arguments.
+
+### Changes made because of these runs
+
+- `deep_search` retries a fast 422 on the same window and never halves it for one; fast 422s do not use up
+  `max_requests`; the waiting cap is 6 minutes.
+- A truncated result leads with `next_call`: the arguments for the subreddit that is furthest behind.
+- The skill: `max_requests: 60`, follow `next_call` up to 3 calls, put the largest help subreddit first (with
+  a short table), and expect no reddit.com links from the web search.

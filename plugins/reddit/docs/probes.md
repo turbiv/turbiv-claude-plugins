@@ -299,3 +299,25 @@ depend on it: it matches by `id`.
 |---|---|---|---|
 | ACCEPTANCE.md | Session 3, `search_comments` | Words, phrase and OR pass through; `-exclude` / `NOT` is applied locally on an over-fetched page | S3-1 |
 | EVALS.md | `read-post`, `thread-follow-up` | The case folders exist; `thread-follow-up` replays a recorded turn 1 | — |
+
+## Live probes, Session 5
+
+**Fact:** run on 2026-11-21 against the public instance, one request at a time, at least 3 s apart, 4 requests.
+No request went to reddit.com.
+
+### S5-1. Which `fields=` does `subreddits/search` accept?
+
+`subreddits/search?subreddit_prefix=espresso&limit=3&sort_type=subscribers&sort=desc&fields=…`
+
+| `fields=` asked for | Answer |
+|---|---|
+| … `title` … | HTTP 400 in 0.34 s: `'title' is not a valid field` |
+| … `subreddit_type` … | HTTP 400 in 0.35 s: `'subreddit_type' is not a valid field` |
+| … `_meta` … | HTTP 400 in 0.47 s: `'_meta' is not a valid field` |
+| `display_name,subscribers,retrieved_on,over18,created_utc,public_description,id` | HTTP 200 in 1.05 s, 1,323 bytes for 3 subreddits |
+
+- So a slim subreddit object is about 0.4 KB. A full one is about 9 KB, mostly the sidebar `description`.
+- The client's `SUBREDDIT_FIELDS` whitelist holds the 7 names that passed. `find_subreddits` asks for 6 of
+  them, and so it no longer shows the archived post and comment totals (`_meta`). `subreddit_info` still asks
+  for the full object.
+- `description` and `quarantine` were not tested, so they are not in the whitelist.

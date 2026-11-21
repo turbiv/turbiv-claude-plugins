@@ -5,7 +5,7 @@ What it enforces, with the rule IDs from `reports/Keyless Reddit MCP sources.md`
 - D1/E5: only the configured archive and status hosts, never a Reddit host.
 - R1/R2: one request in flight, at least `min_interval` seconds between requests.
 - R3: `fields=` is required on post/comment search and ids calls, and only whitelisted names pass.
-- R4: `limit` is at most 100.
+- R4: `limit` is at most 100 (1000 on `subreddits/search` and `users/search`).
 - R5: `get_batched` / `get_ids` split large inputs into calls of the documented size.
 - R6: a descriptive User-Agent.
 - R7: a SQLite response cache; final data is immutable, the rest has a TTL.
@@ -20,9 +20,11 @@ What it enforces, with the rule IDs from `reports/Keyless Reddit MCP sources.md`
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import contextvars
 import json
 import time
-from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
@@ -68,6 +70,12 @@ POST_FIELDS = COMMON_FIELDS | {
     "url",
 }
 COMMENT_FIELDS = COMMON_FIELDS | {"body", "link_id", "parent_id"}
+# Subreddit objects. Probed on 2026-11-21 (docs/probes.md, Session 5): the archive refuses
+# `title`, `subreddit_type` and `_meta` with HTTP 400; these pass. A full object is about 9 KB,
+# mostly the sidebar `description`; these fields are about 0.4 KB.
+SUBREDDIT_FIELDS = frozenset(
+    {"created_utc", "display_name", "id", "over18", "public_description", "retrieved_on", "subscribers"}
+)
 # Only in full objects (request with full=True): permalink, upvote_ratio, controversiality,
 # domain, is_self, removed_by_category, _meta.
 FULL_ONLY_FIELDS = frozenset(
@@ -102,6 +110,8 @@ DEFAULT_COMMENT_FIELDS = (
 
 # --- R4/R5: documented limits. ---
 MAX_LIMIT = 100
+# These two search paths accept up to 1000 (Arctic Shift API docs; Session 4 probes).
+BIG_LIMIT_PATHS = {"subreddits/search": 1000, "users/search": 1000}
 IDS_BATCH = 500
 SHORT_LINKS_BATCH = 1000
 RULES_BATCH = 1000
@@ -119,6 +129,22 @@ _SCOPE_PARAMS = ("subreddit", "author", "link_id", "parent_id")
 
 # R7: data older than this cannot change in the archive any more.
 FINAL_AGE = 72 * 3600
+
+
+class RequestCounter:
+    """HTTP requests sent during one tool call (see `ArcticShiftClient.count_requests`)."""
+
+    __slots__ = ("n",)
+
+    def __init__(self) -> None:
+        self.n = 0
+
+
+# Each MCP tool call runs in its own asyncio task with its own copy of the context, so a counter
+# set here belongs to one call only: parallel calls do not count each other's requests.
+_CALL_COUNTER: contextvars.ContextVar[RequestCounter | None] = contextvars.ContextVar(
+    "reddit_mcp_call_counter", default=None
+)
 
 
 @dataclass
@@ -178,7 +204,11 @@ class ArcticShiftClient:
         self.settings = settings or Settings.from_env()
         if cache is None:
             path = self.settings.cache_path
-            cache = ResponseCache(path, ttl=self.settings.cache_ttl) if path is not None else NullCache()
+            cache = (
+                ResponseCache(path, ttl=self.settings.cache_ttl, max_bytes=int(self.settings.cache_max_mb * 1024 * 1024))
+                if path is not None
+                else NullCache()
+            )
         self.cache = cache
         self._sleep = sleep
         self._clock = clock
@@ -192,12 +222,42 @@ class ArcticShiftClient:
         self._lock = asyncio.Lock()
         self._last_done: float | None = None
         self._blocked_until = 0.0  # after a 429, no request goes out before this (E1)
-        self.request_count = 0  # real HTTP requests sent (not cache hits)
+        self.request_count = 0  # real HTTP requests sent by this client in all (not cache hits)
         self._status_cache: tuple[float, dict[str, Any]] | None = None
 
     async def aclose(self) -> None:
         await self._http.aclose()
         self.cache.close()
+
+    # ------------------------------------------------------------------ clock and counters
+
+    def now(self) -> float:
+        """Wall-clock epoch seconds. Tools use this (not time.time()) so tests run on a fake clock."""
+        return float(self._wall())
+
+    async def sleep(self, seconds: float) -> None:
+        """Sleep with the client's sleep function (instant in tests)."""
+        await self._sleep(max(0.0, float(seconds)))
+
+    @staticmethod
+    @contextlib.contextmanager
+    def count_requests() -> Iterator[RequestCounter]:
+        """Count the HTTP requests sent inside this block, by this task and the tasks it starts.
+
+        `archive_tool` opens one for every tool call, so `call_requests` is per call."""
+        counter = RequestCounter()
+        token = _CALL_COUNTER.set(counter)
+        try:
+            yield counter
+        finally:
+            _CALL_COUNTER.reset(token)
+
+    @property
+    def call_requests(self) -> int:
+        """HTTP requests sent so far in the current tool call (status checks and retries
+        included, cache hits not). Outside a tool call it is the client-wide `request_count`."""
+        counter = _CALL_COUNTER.get()
+        return counter.n if counter is not None else self.request_count
 
     # ------------------------------------------------------------------ public API
 
@@ -309,7 +369,7 @@ class ArcticShiftClient:
 
         Raises `ArchiveUnavailable` (with `status_error`) when the feed cannot be read.
         """
-        now = self._wall()
+        now = self.now()
         if self._status_cache and now - self._status_cache[0] < max_age:
             return self._status_cache[1]
         try:
@@ -347,7 +407,10 @@ class ArcticShiftClient:
         whitelist = _FIELDS_REQUIRED.get(path)
         if fields is not None:
             names = [f.strip() for f in fields if f and f.strip()]
-            allowed = whitelist or (POST_FIELDS | COMMENT_FIELDS)
+            if path == "subreddits/search":
+                allowed = SUBREDDIT_FIELDS
+            else:
+                allowed = whitelist or (POST_FIELDS | COMMENT_FIELDS)
             bad = [n for n in names if n not in allowed]
             if bad:
                 hint = " (only in full objects: request full=True)" if set(bad) & FULL_ONLY_FIELDS else ""
@@ -364,8 +427,9 @@ class ArcticShiftClient:
                 n = int(out["limit"])
             except ValueError:
                 raise InputError(f"limit must be a number, not {out['limit']!r}") from None
-            if path.endswith("/search") and not 1 <= n <= MAX_LIMIT:
-                raise InputError(f"limit must be 1-{MAX_LIMIT}")
+            cap = BIG_LIMIT_PATHS.get(path, MAX_LIMIT)
+            if path.endswith("/search") and not 1 <= n <= cap:
+                raise InputError(f"limit must be 1-{cap}")
 
         # T8: only absolute epoch seconds go out.
         for k in ("after", "before"):
@@ -412,6 +476,9 @@ class ArcticShiftClient:
                 await self._sleep(wait)
             start = self._clock()
             self.request_count += 1
+            counter = _CALL_COUNTER.get()
+            if counter is not None:
+                counter.n += 1
             try:
                 resp = await self._http.get(url, params=params)
             except httpx.TimeoutException as e:
@@ -474,7 +541,7 @@ class ArcticShiftClient:
         return body
 
     def _is_immutable(self, path: str, params: Mapping[str, Any], data: Any) -> bool:
-        now = self._wall()
+        now = self.now()
         if not isinstance(data, list) or not data:
             return False
         if not all(isinstance(x, Mapping) and item_is_final(x, now) for x in data):

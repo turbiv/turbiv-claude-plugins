@@ -8,13 +8,13 @@ from support import load_fixture
 
 pytestmark = pytest.mark.anyio
 
-USER = load_fixture("discovery/user-willswill.json")
-USER_SUBS = load_fixture("discovery/user-subs-willswill.json")
+USER = load_fixture("discovery/user-example.json")
+USER_SUBS = load_fixture("discovery/user-subs-example.json")
 SHORT = load_fixture("discovery/shortlink-running-2.json")
 POST_16 = {"data": [{"id": "16puhb3", "subreddit": "running", "author": "AutoModerator",
                      "title": "Achievements for Saturday, September 23, 2023", "created_utc": 1695470471,
                      "num_comments": 120, "score": 30, "retrieved_on": 1695470480}]}
-COMMENT_K1 = {"data": [{"id": "k1unwm1", "subreddit": "running", "author": "zacattack1996",
+COMMENT_K1 = {"data": [{"id": "k1unwm1", "subreddit": "running", "author": "example_runner",
                         "link_id": "t3_16puhb3", "parent_id": "t3_16puhb3", "created_utc": 1695500000,
                         "body": "Ran my first 5k time trial.", "score": 5}]}
 
@@ -25,9 +25,9 @@ async def test_get_user(call, fake_archive):
     fake_archive.add("users/interactions/subreddits", USER_SUBS)
     fake_archive.add("posts/search", {"data": []})
     fake_archive.add("comments/search", {"data": []})
-    r = await call("get_user", {"username": "u/willswill"})
+    r = await call("get_user", {"username": "u/example_user"})
     assert fake_archive.paths()[:4] == ["users/search", "users/interactions/subreddits", "posts/search", "comments/search"]
-    assert fake_archive.params(0) == {"author": "willswill"}
+    assert fake_archive.params(0) == {"author": "example_user"}
     # T14: the interactions and listings are bounded to the last year by default
     assert "after" in fake_archive.params(1) and "after" in fake_archive.params(2)
     u = r["user"]
@@ -48,7 +48,7 @@ async def test_get_user_survives_a_timeout_on_one_part(call, fake_archive):
     fake_archive.add("users/interactions/subreddits", (422, {"data": None, "error": "Timeout"}))
     fake_archive.add("posts/search", {"data": []})
     fake_archive.add("comments/search", {"data": []})
-    r = await call("get_user", {"username": "willswill", "time": "all"})
+    r = await call("get_user", {"username": "example_user", "time": "all"})
     assert "timed out" in r["active_subreddits"]
     assert "after" not in fake_archive.params(-2)
 

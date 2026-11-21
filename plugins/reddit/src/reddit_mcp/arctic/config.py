@@ -48,6 +48,7 @@ _ENV_KEYS = (
     "REDDIT_MCP_CACHE_TTL",
     "REDDIT_MCP_USER_AGENT",
     "REDDIT_MCP_CACHE",
+    "REDDIT_MCP_CACHE_MAX_MB",
 )
 
 
@@ -59,6 +60,7 @@ class Settings:
     timeout: float = 30.0
     cache_path: Path | None = field(default_factory=_default_cache_path)
     cache_ttl: float = 600.0
+    cache_max_mb: float = 200.0
     user_agent: str = DEFAULT_USER_AGENT
     max_rate_limit_wait: float = 65.0
     retry_delay_422: float = 2.0
@@ -98,6 +100,8 @@ class Settings:
             kw["timeout"] = float(v)
         if v := env.get("REDDIT_MCP_CACHE_TTL"):
             kw["cache_ttl"] = float(v)
+        if v := env.get("REDDIT_MCP_CACHE_MAX_MB"):
+            kw["cache_max_mb"] = max(1.0, float(v))
         if v := env.get("REDDIT_MCP_USER_AGENT"):
             kw["user_agent"] = v
         if v := env.get("REDDIT_MCP_CACHE"):

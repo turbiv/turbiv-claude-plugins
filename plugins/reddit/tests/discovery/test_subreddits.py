@@ -27,6 +27,9 @@ async def test_find_subreddits_by_prefix(call, fake_archive):
     assert sent["subreddit_prefix"] == "espresso"
     assert sent["over18"] == "false"
     assert sent["sort_type"] == "subscribers"
+    # slim objects: only the fields the archive accepts for subreddits (probed 2026-11-21)
+    assert set(sent["fields"].split(",")) == {
+        "display_name", "subscribers", "retrieved_on", "over18", "created_utc", "public_description"}
     subs = r["subreddits"]
     assert [s["name"] for s in subs][:3] == ["r/espresso", "r/espressocirclejerk", "r/espressomachines"]
     top = subs[0]
@@ -45,7 +48,7 @@ async def test_find_subreddits_by_prefix(call, fake_archive):
 async def test_find_subreddits_keyword_is_a_local_filter(call, fake_archive):
     fake_archive.add_status().add("subreddits/search", PREFIX)
     r = await call("find_subreddits", {"name_or_prefix": "espresso", "keyword": "machine", "activity_for_top": 0})
-    assert fake_archive.params(0)["limit"] == "100"
+    assert fake_archive.params(0)["limit"] == "500"  # slim objects: up to 1000 are allowed
     names = [s["name"] for s in r["subreddits"]]
     assert "r/espressomachines" in names
     assert "r/espresso_decaf" not in names

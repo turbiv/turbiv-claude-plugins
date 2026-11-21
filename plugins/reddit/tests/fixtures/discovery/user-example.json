@@ -1,0 +1,22 @@
+{
+ "_note": "Made-up user with the shape of a users/search answer (saved 2026-11-20). Not a real account.",
+ "data": [
+  {
+   "_meta": {
+    "earliest_comment_at": 1500000000,
+    "earliest_post_at": 1510000000,
+    "last_comment_at": 1740000000,
+    "last_post_at": 1750000000,
+    "num_comments": 1047,
+    "num_posts": 37,
+    "comment_stats_updated_at": 1742000000,
+    "post_stats_updated_at": 1756000000,
+    "post_karma": 751,
+    "comment_karma": 3343,
+    "total_karma": 4094
+   },
+   "author": "example_user",
+   "id": "00000a"
+  }
+ ]
+}

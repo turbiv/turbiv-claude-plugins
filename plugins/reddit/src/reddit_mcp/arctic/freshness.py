@@ -133,7 +133,7 @@ def parse_freshness(body: Mapping[str, Any], now: float) -> Freshness:
 async def get_freshness(client: Any, *, max_age: float = 600.0) -> Freshness:
     """Raises ArchiveUnavailable when the status feed cannot be read."""
     body = await client.status(max_age=max_age)
-    return parse_freshness(body, client._wall())
+    return parse_freshness(body, client.now())
 
 
 async def freshness_warnings(client: Any, *, comments: bool = False) -> list[str]:

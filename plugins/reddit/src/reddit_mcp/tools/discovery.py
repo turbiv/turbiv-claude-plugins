@@ -409,11 +409,11 @@ def register(mcp: Any, ctx: ServerContext) -> None:
     ) -> dict:
         """Find subreddits whose NAME starts with `name_or_prefix` (e.g. 'espresso' finds
         r/espresso, r/espressocirclejerk, r/EspressoMachines), largest first, with subscriber
-        counts and archived post/comment totals.
+        counts and public descriptions.
 
         This is name and prefix matching only: the archive has no topic search. To find
         communities about a topic, call it with several likely name stems (for home espresso:
-        'espresso', 'coffee', 'barista'). `keyword` keeps only results whose title or
+        'espresso', 'coffee', 'barista'). `keyword` keeps only results whose name or public
         description contains that word (a local filter over the name matches, not a topic
         search). `nsfw`: true for NSFW only, false to exclude NSFW.
 
@@ -426,13 +426,15 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         activity_for_top = _clamp(activity_for_top, 0, 10, "activity_for_top")
         params: dict[str, Any] = {
             "subreddit_prefix": prefix,
-            "limit": 100 if keyword else max(limit, 25),
+            # Slim objects (SUBREDDIT_FIELDS, about 0.4 KB each instead of 9 KB), so a keyword
+            # filter can look at many more name matches.
+            "limit": 500 if keyword else max(limit, 25),
             "min_subscribers": min_subscribers,
             "over18": nsfw,
             "sort_type": "subscribers",
             "sort": "desc",
         }
-        resp = await client.get("subreddits/search", params)
+        resp = await client.get("subreddits/search", params, fields=FIND_SUB_FIELDS)
         subs = [s for s in (resp.data or []) if isinstance(s, Mapping)]
         scanned = len(subs)
         notes = [
@@ -443,11 +445,11 @@ def register(mcp: Any, ctx: ServerContext) -> None:
             kw = keyword.strip().lower()
             subs = [
                 s for s in subs
-                if kw in " ".join(str(s.get(k) or "") for k in ("display_name", "title", "public_description", "description")).lower()
+                if kw in " ".join(str(s.get(k) or "") for k in ("display_name", "public_description")).lower()
             ]
             notes.append(
                 f"keyword filter {keyword!r}: kept {len(subs)} of the {scanned} largest name matches "
-                "(local filter over titles and descriptions)"
+                "(local filter over names and public descriptions)"
             )
         if not subs:
             notes.append(
@@ -539,7 +541,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         )
 
     async def _activity(display: str, kind: str) -> dict[str, Any] | None:
-        now = client._wall()
+        now = client.now()
         resp = await client.get(
             "time_series",
             {"key": f"r/{display}/{kind}/count", "precision": "day", "after": int(now - 35 * 86400)},
@@ -565,7 +567,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         }
 
     async def _activity_from_listing(display: str) -> dict[str, Any] | None:
-        now = int(client._wall())
+        now = int(client.now())
         try:
             resp = await client.get(
                 "posts/search",
@@ -864,8 +866,8 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         limit = _clamp(limit, 1, 50, "limit")
         max_requests = _clamp(max_requests, 1, MAX_REQUESTS_CAP, "max_requests")
         page_budget = max(len(subs), max_requests - 1)  # 1 request to fetch the posts
-        sent_before = client.request_count
-        now = int(client._wall())
+        sent_before = client.call_requests
+        now = int(client.now())
         after = now - hours * 3600
         scans: list[Scan] = []
         remaining = page_budget
@@ -941,7 +943,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
             coverage=[s.describe() for s in scans],
             requests_used=0,
         )
-        result["requests_used"] = client.request_count - sent_before  # HTTP requests, status check included
+        result["requests_used"] = client.call_requests - sent_before  # HTTP requests, status check included
         return result
 
     # ------------------------------------------------------------ count_mentions (T14)
@@ -986,11 +988,11 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         if where not in ("posts", "comments", "both"):
             raise InputError("in must be posts, comments or both")
         max_requests = _clamp(max_requests, 2, MAX_REQUESTS_CAP, "max_requests")
-        sent_before = client.request_count
+        sent_before = client.call_requests
         if time is None and after is None and before is None:
             time = "3 months"
         window = resolve_window(time, after, before)
-        now = int(client._wall())
+        now = int(client.now())
         if window.after is None and not all_time:
             raise InputError(
                 "an all-time count is heavy and needs all_time=true; or give a window such as "
@@ -1099,7 +1101,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
             coverage=[s.describe() for _, s in scans],
             requests_used=0,
         )
-        result["requests_used"] = client.request_count - sent_before  # HTTP requests, status check included
+        result["requests_used"] = client.call_requests - sent_before  # HTTP requests, status check included
         return result
 
 
@@ -1215,6 +1217,11 @@ def _share_path(value: str) -> str | None:
         s = s.split("?", 1)[0].split("#", 1)[0]
     m = _SHARE.match(s)
     return "/" + m.group(1) if m else None
+
+
+# What find_subreddits asks for. The archive refuses `title`, `subreddit_type` and `_meta` in
+# fields= (probed 2026-11-21), so archived totals come only from subreddit_info's full object.
+FIND_SUB_FIELDS = ("display_name", "subscribers", "retrieved_on", "over18", "created_utc", "public_description")
 
 
 def _shape_sub(sub: Mapping[str, Any], *, matched: str | None = None, full: bool = False) -> dict[str, Any]:

@@ -98,7 +98,7 @@ Session 4 used 22 probe requests, 5–7 s apart, plus 4 for its live smoke test.
 | `subreddits/search?min_subscribers=500000&limit=100` | 200 in **13.6 s**, 900 KB; the 100th largest has 7.7 M subscribers | no keyword-only topic scan over the largest subreddits: too slow, and r/espresso (650 k) is far below the top 100 |
 | `time_series?key=r/espresso/posts/count&precision=day` | 200, 0.4–1.5 s; one point per UTC day; the newest point was 2026-11-19, 1–2 days behind | posts and comments per day for `subreddit_info` and `find_subreddits` |
 | `subreddits/rules`, `subreddits/wikis/list`, `subreddits/wikis?paths=` | 200, 0.4–0.5 s each; the wiki content is HTML-escaped (`&gt;`) | the tools unescape it |
-| `users/search?author=willswill` | 200, 1.5 s; `_meta` with counts, karma, first and last activity | `get_user` |
+| `users/search?author=<the wi7uhk author>` | 200, 1.5 s; `_meta` with counts, karma, first and last activity | `get_user` |
 | `users/interactions/subreddits` | 200, 2.9 s | `get_user` |
 | `comments/search?subreddit=MechanicalKeyboards&after=-24h&limit=100` | 200, 1.25 s; the 100 comments covered 17 h | `trending_posts` |
 | `comments/search?…&body=keychron` (3 months) | **200**, 3.4 s, 100 matches back to 2026-11-09 | works this time, but needs many pages per term; not used |

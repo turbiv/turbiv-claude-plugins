@@ -1,0 +1,10 @@
+{
+ "_note": "Made-up activity with the shape of a users/interactions/subreddits answer. Not a real account.",
+ "data": [
+  {"subreddit": "buildapc", "count": 743},
+  {"subreddit": "buildapcsales", "count": 144},
+  {"subreddit": "AskReddit", "count": 104},
+  {"subreddit": "pcmasterrace", "count": 24},
+  {"subreddit": "hardware", "count": 18}
+ ]
+}

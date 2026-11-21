@@ -18,10 +18,8 @@ Rules from `reports/Keyless Reddit MCP sources.md` that this module carries:
 
 from __future__ import annotations
 
-import asyncio
 import difflib
 import re
-import time
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Literal
@@ -96,14 +94,12 @@ _STOPWORDS = frozenset(
 
 def _now(client: ArcticShiftClient) -> float:
     """The client's wall clock (a fake one in tests)."""
-    wall = getattr(client, "_wall", None)
-    return float(wall()) if callable(wall) else time.time()
+    return client.now()
 
 
 async def _sleep(client: ArcticShiftClient, seconds: float) -> None:
     """The client's sleep (instant in tests)."""
-    sleep = getattr(client, "_sleep", None)
-    await (sleep(seconds) if callable(sleep) else asyncio.sleep(seconds))
+    await client.sleep(seconds)
 
 
 # ---------------------------------------------------------------- input checks
@@ -866,7 +862,7 @@ async def _deep_step(client: ArcticShiftClient, st: Step, state: DeepState, now:
     params = {"subreddit": st.sub, st.kind: st.value, "sort": "desc", "limit": PAGE,
               "after": win_lo if win_lo > ARCHIVE_START else None, "before": st.hi}
     fields = DEFAULT_COMMENT_FIELDS if st.kind == "body" else DEFAULT_POST_FIELDS
-    before_count = client.request_count
+    before_count = client.call_requests
     try:
         resp = await client.get(st.path, params, fields=fields, retry_422=0)
     except QueryTooHeavy as e:
@@ -897,7 +893,7 @@ async def _deep_step(client: ArcticShiftClient, st: Step, state: DeepState, now:
         if st.failed_in_row >= MAX_FAILED_WINDOWS or st.hi <= st.lo:
             st.status = "gave up"
         return
-    if client.request_count == before_count:
+    if client.call_requests == before_count:
         state.cache_hits += 1
     state.wait = FAST_422_WAIT
     st.fast_retry = False
@@ -1224,9 +1220,11 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         - concepts: AND of OR groups that you write, e.g.
           [["9900k", "i9-9900k", "9900kf"], ["power limit", "PL1", "PL2", "undervolt", "TDP"]].
           Put model names, synonyms and spellings in the groups.
-        - subreddits: 1-8 fitting subreddits, most likely first (e.g. buildapc, intel,
-          overclocking). They share max_requests, so each extra subreddit makes every search
-          shallower: 2-3 is best. For an old post, prefer fewer subreddits or an after/before range.
+        - subreddits: 1-2 fitting subreddits per call, the most likely first (e.g. buildapc,
+          intel). They share max_requests round robin, so each extra subreddit makes every
+          search shallower: with 3 subreddits and in='both' each step gets about 1/6 of the
+          budget and old posts are not reached. Search more subreddits in a second call. Up to
+          8 are accepted. For an old post, an after/before range also helps.
         - after / before: an optional date range (epoch seconds or '2022', '2022-08-01').
         - in: 'posts' (default and cheapest: title, then title+selftext), 'comments' (comment
           bodies, grouped by post), or 'both' (splits the budget again).
@@ -1242,9 +1240,10 @@ def register(mcp: Any, ctx: ServerContext) -> None:
 
         The result lists the candidates, each with `matched: ...`, and a `coverage` report: the
         windows scanned and failed, the requests used, and whether the search was truncated
-        (then each unfinished step has a `resume_before`). If the result is truncated and no
-        candidate is clearly the thread wanted, run a web search for candidate Reddit URLs and
-        read them through get_posts.
+        (then each unfinished step has a `resume_before`, and `coverage.continue_with.before`).
+        If the result is truncated, call again with that `before` and the same subreddit. If it
+        is still truncated or empty, or the archive is busy, use your web search tool (when you
+        have one) for candidate reddit.com URLs, then read them with get_thread or get_posts.
         """
         if not concepts or not all(isinstance(g, list) and g for g in concepts):
             raise InputError("concepts must be a list of non-empty term groups, e.g. [['9900k'], ['power limit', 'PL1']]")
@@ -1270,7 +1269,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         if not anchors:
             raise InputError("no usable search term: every term is a stop word")
         primary = anchors[0]
-        start = client.request_count
+        start = client.call_requests
         budget_end = start + max_requests
         state = DeepState()
 
@@ -1303,7 +1302,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         max_steps = max_requests * 4  # bounds the loop when the cache answers
         n_steps = 0
         busy_stop = False
-        while n_steps < max_steps and client.request_count < budget_end - reserve:
+        while n_steps < max_steps and client.call_requests < budget_end - reserve:
             if state.waited >= MAX_TOTAL_WAIT:
                 busy_stop = True
                 break
@@ -1311,7 +1310,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
             if not ready:
                 break
             for st in ready:
-                if client.request_count >= budget_end - reserve:
+                if client.call_requests >= budget_end - reserve:
                     break
                 await _deep_step(client, st, state, now)
                 n_steps += 1
@@ -1321,7 +1320,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         if state.comments:
             missing = [lid for lid in sorted(state.comments, key=lambda k: -len(state.comments[k]))
                        if lid not in state.posts][:500]
-            if missing and client.request_count < budget_end:
+            if missing and client.call_requests < budget_end:
                 for x in await client.get_ids("posts", missing, fields=DEFAULT_POST_FIELDS):
                     pid = strip_prefix(x.get("id"))
                     if pid:
@@ -1380,7 +1379,7 @@ def register(mcp: Any, ctx: ServerContext) -> None:
                 ]
             out.append(post)
 
-        used = client.request_count - start
+        used = client.call_requests - start
         oldest_open = [st.hi for st in steps if st.status == "active"]
         not_started = [st.label() + f" in r/{st.sub}" for st in steps if st.status == "waiting"]
         coverage: dict[str, Any] = {
@@ -1405,7 +1404,8 @@ def register(mcp: Any, ctx: ServerContext) -> None:
         if busy_stop:
             notes.append(
                 f"stopped early: the archive kept refusing keyword queries (fast HTTP 422, load shedding) "
-                f"and the tool had waited {state.waited:.0f} s. Try again in a few minutes."
+                f"and the tool had waited {state.waited:.0f} s. Try again in a few minutes, or run a web "
+                "search for candidate reddit.com URLs and read them with get_thread or get_posts."
             )
         if truncated:
             notes.append(
@@ -1416,13 +1416,15 @@ def register(mcp: Any, ctx: ServerContext) -> None:
                     f"r/{st.sub} ({st.label()}) reached {iso(st.hi)}: before={st.hi}"
                     for st in steps if st.status == "active"
                 )
-                + ". Or narrow after/before to the years that matter."
+                + ". Or narrow after/before to the years that matter. If no candidate is clearly the "
+                "thread wanted, also run a web search for candidate reddit.com URLs and read them "
+                "with get_thread or get_posts."
             )
         if not out:
             notes.append(
                 "No candidates. The archive's keyword search may have failed (see windows_failed), or "
                 "the wording differs. Try other terms, a date range, or a web search for candidate "
-                "Reddit URLs and read them with get_posts."
+                "reddit.com URLs and read them with get_thread or get_posts."
             )
         return await make_result(
             client, items=out, items_key="candidates", notes=notes,

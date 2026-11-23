@@ -1,5 +1,5 @@
 import { atom, update } from 'claude-code'
-import type { EngineInterface, On } from 'claude-code'
+import type { EngineInterface, On, ToolResultOf } from 'claude-code'
 
 import type { Activity, ActivityItem, ActivityKind } from '../types'
 
@@ -78,10 +78,47 @@ export const toolLabel = (tool: string, args: Args): string => {
   }
 }
 
-// Whether a call hands its work to the background: its result comes back at
-// once while the work runs on.
-const isBackgrounded = (tool: string, args: Args): boolean =>
-  args.run_in_background === true || tool === 'Monitor'
+const nonEmpty = (value: unknown): string | undefined =>
+  typeof value === 'string' && value !== '' ? value : undefined
+
+type AgentLaunch = Extract<ToolResultOf<'Agent'>, { status: 'async_launched' | 'remote_launched' }>
+
+// The engine's id for the work a call left running, read from the call's own
+// result, never from its arguments: the engine can background a command the
+// call did not ask for (ctrl+b, a turn abort) and refuse one it did (background
+// tasks disabled). It is the id classic.Stop lists and the task's notification
+// names; undefined for a call that ran to its end.
+export const backgroundTaskOf = (tool: string, result: unknown): string | undefined => {
+  if (typeof result !== 'object' || result === null) return undefined
+
+  switch (tool) {
+    case 'Bash':
+      return nonEmpty((result as Partial<ToolResultOf<'Bash'>>).backgroundTaskId)
+    case 'Monitor':
+      return nonEmpty((result as Partial<ToolResultOf<'Monitor'>>).taskId)
+    case 'Workflow':
+      return nonEmpty((result as Partial<ToolResultOf<'Workflow'>>).taskId)
+    case 'Agent':
+    case 'Task': {
+      const agent = result as Partial<AgentLaunch>
+
+      if (agent.status === 'async_launched') return nonEmpty(agent.agentId)
+      if (agent.status === 'remote_launched') return nonEmpty(agent.taskId)
+
+      return undefined
+    }
+    default:
+      return undefined
+  }
+}
+
+// A workflow's name is its script's own (`meta.name`), which only the result
+// carries; the call's arguments name a saved workflow alone.
+const backgroundLabel = (tool: string, args: Args, result: unknown): string => {
+  const name = tool === 'Workflow' ? text((result as Partial<ToolResultOf<'Workflow'>>).workflowName) : ''
+
+  return name ? `Workflow ${name}` : toolLabel(tool, args)
+}
 
 const kindOfCall = (tool: string): ActivityKind => {
   if (tool === 'Bash') return 'shell'
@@ -124,6 +161,35 @@ export const fromSummary = (task: BackgroundSummary): ActivityItem => {
           : description || text(task.tool) || task.type
 
   return { id: task.id, kind, label: label || task.type }
+}
+
+// The task a notification says has ended: the engine's task id, and how it
+// ended (`completed`, `failed`, `killed`, `stopped`).
+export type TaskEnd = { taskId: string; status: string }
+
+const ENVELOPE_OPEN = '<task-notification>'
+
+// The engine hands hooks a notification's text alone (the parsed form is the
+// transcript row's, a drawing's), so its envelope is read here. Only its head
+// counts: the fields the engine writes before the task's own words
+// (`<summary>`, `<result>`, `<event>`, `<note>`), which can quote another
+// envelope. With no status (a monitor's event, an agent's note) the task still
+// runs: undefined, as for a head this cannot read, so nothing is dropped then.
+export const parseTaskEnd = (text: string): TaskEnd | undefined => {
+  const start = text.indexOf(ENVELOPE_OPEN)
+
+  if (start < 0) return undefined
+
+  const body = text.slice(start + ENVELOPE_OPEN.length)
+  const headEnd = body.search(/<(summary|result|event|note)>|<\/task-notification>/)
+  const head = headEnd < 0 ? body : body.slice(0, headEnd)
+  const field = (tag: string): string | undefined =>
+    nonEmpty(new RegExp(`<${tag}>([^<]*)</${tag}>`).exec(head)?.[1]?.trim())
+
+  const taskId = field('task-id')
+  const status = field('status')
+
+  return taskId !== undefined && status !== undefined ? { taskId, status } : undefined
 }
 
 const PLURALS: Record<ActivityKind, [string, string]> = {
@@ -186,9 +252,17 @@ export function hookActivity(on: On): void {
 
     try {
       const result = await next(e)
+      const taskId =
+        result.deny === undefined && result.isError !== true
+          ? backgroundTaskOf(e.tool, result.result)
+          : undefined
 
-      if (isBackgrounded(e.tool, args) && result.deny === undefined && result.isError !== true) {
-        const moved: ActivityItem = { ...item, kind: kindOfCall(e.tool) }
+      if (taskId !== undefined) {
+        const moved: ActivityItem = {
+          id: taskId,
+          kind: kindOfCall(e.tool),
+          label: backgroundLabel(e.tool, args, result.result),
+        }
         await update($, activity, a => ({
           ...a,
           background: [...a.background.filter(b => b.id !== moved.id), moved],
@@ -201,8 +275,26 @@ export function hookActivity(on: On): void {
     }
   })
 
+  // A background task that ends sends a notification, delivered as a prompt
+  // whose origin the engine stamps, idle or into a running turn; the band drops
+  // the task at once. It does not wait for classic.Stop below, which a policy
+  // plugin above this one can skip. Text that only looks like a notification
+  // (typed, pasted, a tool's output) has another origin.
+  on('prompt.submit', async ($, e, next) => {
+    const ended = e.origin.kind === 'task-notification' ? parseTaskEnd(e.text) : undefined
+
+    if (ended !== undefined) {
+      await update($, activity, a => ({
+        ...a,
+        background: a.background.filter(b => b.id !== ended.taskId),
+      }))
+    }
+
+    return next(e)
+  })
+
   // At the end of each main turn the engine lists the work still in flight:
-  // that list replaces what the calls above guessed.
+  // that list, keyed by the same task ids, replaces what the hooks above kept.
   on('classic.Stop', async ($, e, next) => {
     const tasks = (e as { background_tasks?: BackgroundSummary[] }).background_tasks
 

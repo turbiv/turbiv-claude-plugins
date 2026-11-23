@@ -20,7 +20,7 @@ It shows:
 
   Beside the crab, one thing reads as a few words for it: the Bash call's description (`Running the tests`), `Reading foo.ts`, `Agent: review the diff`, or `Thinking` while the model works with no tool running. Several read as how many and of what kinds, `3 running: 2 shells, 1 agent`.
 
-  It counts the main turn's tool calls in flight and the background work that outlives them (background shells, subagents, monitors, workflows). The background list is refreshed at the end of each turn, from the list Claude Code keeps of work still in flight.
+  It counts the main turn's tool calls in flight and the background work that outlives them (background shells, subagents, monitors, workflows). Background work shows from the call that starts it (asked for, or moved there with ctrl+b) and leaves as soon as Claude Code reports it ended (completed, failed or stopped); the whole list is also refreshed at the end of each turn from the list Claude Code keeps of work still in flight.
 - **Context fill**: a 12-cell bar and percent, green below 40%, amber from 40%, red from 85%, then tokens used of the window.
 - **What you spend**, decided per session from what the API reports:
   - on a Pro/Max subscription (its responses carry the 5-hour and 7-day windows): those windows, and when each resets;

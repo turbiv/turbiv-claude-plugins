@@ -24,8 +24,52 @@ const start = async ($: any, on: any) => {
   }))
   on('clock.now', () => ({ value: Date.now() }))
   on('classic.Stop', () => ({}))
+  on('prompt.submit', (_: unknown, e: { text: string }) => ({ text: e.text }))
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
 }
+
+// A background task's notification as the engine writes it: the task, the
+// call that started it and how it ended, then the task's own words.
+const envelope = (task: { taskId?: string; status?: string; summary?: string; rest?: string }) =>
+  [
+    '<task-notification>',
+    task.taskId === undefined ? '' : `<task-id>${task.taskId}</task-id>`,
+    '<tool-use-id>toolu_01AbCdEf</tool-use-id>',
+    '<output-file>/tmp/tasks/out.output</output-file>',
+    task.status === undefined ? '' : `<status>${task.status}</status>`,
+    `<summary>${task.summary ?? 'Background task ended'}</summary>`,
+    task.rest ?? '',
+    '</task-notification>',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+const notify = ($: any, text: string, kind = 'task-notification') =>
+  $.prompt.submit({ text, wait: false, origin: { kind } })
+
+// The engine's answer to each call, the tool's typed result: the background
+// task's id where the call left work running.
+const BACKGROUND_RESULTS: Record<string, unknown> = {
+  Bash: { stdout: '', stderr: '', interrupted: false, backgroundTaskId: 'b1' },
+  Monitor: { taskId: 'm1', timeoutMs: 0 },
+  Workflow: { status: 'async_launched', taskId: 'w1', workflowName: 'review-changes' },
+  Agent: {
+    status: 'async_launched',
+    agentId: 'a1',
+    description: 'review the diff',
+    prompt: 'Review the diff',
+    outputFile: '/tmp/tasks/a1.output',
+  },
+}
+
+const answerInBackground = (on: any) =>
+  on('tool.call', (_: unknown, e: { tool: string }) => ({ result: BACKGROUND_RESULTS[e.tool] }))
+
+const startShell = ($: any) =>
+  $.tool.call({ tool: 'Bash', command: 'npm run dev', description: 'Start dev server', run_in_background: true })
+
+const startMonitor = ($: any) =>
+  $.tool.call({ tool: 'Monitor', command: 'tail -f log', description: 'Watch the log' })
 
 // The band's first texts: the dot and what runs.
 const activityOf = async ($: any, isWorking = false) => {
@@ -81,6 +125,168 @@ test('a backgrounded shell stays until the turn-end list drops it', async ($, on
 
   expect(await activityOf($)).toMatch(/hourglass.*\|Start dev server/)
 
+  await $.classic.Stop({ stop_hook_active: false, background_tasks: [] })
+
+  expect(await activityOf($)).toMatch(/Idle/)
+})
+
+// With no turn-end list (a policy plugin above this one can skip classic.Stop),
+// a task leaves on its notification alone.
+test('with no turn-end list, a background shell leaves when its notification says it completed', async ($, on) => {
+  answerInBackground(on)
+  await start($, on)
+
+  await startShell($)
+  expect(await activityOf($)).toMatch(/hourglass.*\|Start dev server/)
+
+  await notify($, envelope({ taskId: 'b1', status: 'completed' }))
+
+  expect(await activityOf($)).toMatch(/Idle/)
+})
+
+test('with no turn-end list, a failed shell and a killed monitor leave too', async ($, on) => {
+  answerInBackground(on)
+  await start($, on)
+
+  await startShell($)
+  await startMonitor($)
+  expect(await activityOf($)).toMatch(/2 running: 1 shell, 1 monitor/)
+
+  await notify($, envelope({ taskId: 'b1', status: 'failed' }))
+  expect(await activityOf($)).toMatch(/hourglass.*\|Watch the log/)
+
+  await notify($, envelope({ taskId: 'm1', status: 'killed' }))
+  expect(await activityOf($)).toMatch(/Idle/)
+})
+
+test('with no turn-end list, a workflow and a background agent show from their call and leave on their notifications', async ($, on) => {
+  answerInBackground(on)
+  await start($, on)
+
+  await $.tool.call({ tool: 'Workflow', script: 'export const meta = {}' })
+  await $.tool.call({ tool: 'Agent', description: 'review the diff', prompt: 'Review the diff' })
+  expect(await activityOf($)).toMatch(/2 running: 1 workflow, 1 agent/)
+
+  await notify($, envelope({ taskId: 'w1', status: 'completed' }))
+  expect(await activityOf($)).toMatch(/hourglass.*\|Agent: review the diff/)
+
+  await notify($, envelope({ taskId: 'a1', status: 'completed' }))
+  expect(await activityOf($)).toMatch(/Idle/)
+})
+
+test('a workflow reads as its own name from the result', async ($, on) => {
+  answerInBackground(on)
+  await start($, on)
+
+  await $.tool.call({ tool: 'Workflow', script: 'export const meta = {}' })
+
+  expect(await activityOf($)).toMatch(/hourglass.*\|Workflow review-changes/)
+})
+
+// The result says whether work went to the background, not the call's ask.
+test('a command the engine moved to the background unasked (ctrl+b) shows until it ends', async ($, on) => {
+  on('tool.call', () => ({
+    result: { stdout: '', stderr: '', interrupted: false, backgroundTaskId: 'b2', backgroundedByUser: true },
+  }))
+  await start($, on)
+
+  await $.tool.call({ tool: 'Bash', command: 'npm run build', description: 'Build the app' })
+  expect(await activityOf($)).toMatch(/hourglass.*\|Build the app/)
+
+  await notify($, envelope({ taskId: 'b2', status: 'completed' }))
+  expect(await activityOf($)).toMatch(/Idle/)
+})
+
+test('a command asked to run in the background that ran to its end (background tasks off) does not stay', async ($, on) => {
+  on('tool.call', () => ({ result: { stdout: 'ok', stderr: '', interrupted: false } }))
+  await start($, on)
+
+  await startShell($)
+
+  expect(await activityOf($)).toMatch(/Idle/)
+})
+
+// A monitor's event is a line of whatever it watches, so it can hold any tag.
+test('a monitor event with no status leaves the monitor running', async ($, on) => {
+  answerInBackground(on)
+  await start($, on)
+
+  await startMonitor($)
+  await notify(
+    $,
+    envelope({ taskId: 'm1', summary: 'Monitor event', rest: '<event>job 7 <status>completed</status></event>' }),
+  )
+
+  expect(await activityOf($)).toMatch(/hourglass.*\|Watch the log/)
+})
+
+test('a notification typed at the prompt removes nothing', async ($, on) => {
+  answerInBackground(on)
+  await start($, on)
+
+  await startShell($)
+  await notify($, envelope({ taskId: 'b1', status: 'completed' }), 'composer')
+
+  expect(await activityOf($)).toMatch(/hourglass.*\|Start dev server/)
+})
+
+test("an envelope quoted in another notification's result removes nothing", async ($, on) => {
+  answerInBackground(on)
+  await start($, on)
+
+  await startShell($)
+  const quoted = envelope({ taskId: 'b1', status: 'completed' })
+  // Its own head names no task, as a relay's event does.
+  await notify($, envelope({ status: 'completed', rest: `<result>${quoted}</result>` }))
+
+  expect(await activityOf($)).toMatch(/hourglass.*\|Start dev server/)
+})
+
+// The call's result and classic.Stop give one task the same id.
+test('a background shell keeps one row through the turn-end list and leaves on its notification', async ($, on) => {
+  answerInBackground(on)
+  await start($, on)
+
+  await startShell($)
+  await $.classic.Stop({
+    stop_hook_active: false,
+    background_tasks: [{ id: 'b1', type: 'shell', status: 'running', description: 'Start dev server' }],
+  })
+  expect(await activityOf($)).toMatch(/hourglass.*\|Start dev server/)
+
+  await notify($, envelope({ taskId: 'b1', status: 'completed' }))
+  expect(await activityOf($)).toMatch(/Idle/)
+})
+
+test('after a turn-end list, a shell, a monitor and a workflow each leave on their notification', async ($, on) => {
+  await start($, on)
+
+  await $.classic.Stop({
+    stop_hook_active: false,
+    background_tasks: [
+      { id: 'b1', type: 'shell', status: 'running', description: 'dev server', command: 'npm run dev' },
+      { id: 'm1', type: 'monitor', status: 'running', description: 'Watch the log' },
+      { id: 'w1', type: 'workflow', status: 'running', description: 'review', name: 'review-changes' },
+    ],
+  })
+  expect(await activityOf($)).toMatch(/3 running: 1 shell, 1 monitor, 1 workflow/)
+
+  await notify($, envelope({ taskId: 'b1', status: 'completed' }))
+  expect(await activityOf($)).toMatch(/2 running: 1 monitor, 1 workflow/)
+
+  await notify($, envelope({ taskId: 'm1', status: 'completed' }))
+  expect(await activityOf($)).toMatch(/hourglass.*\|Workflow review-changes/)
+
+  await notify($, envelope({ taskId: 'w1', status: 'completed' }))
+  expect(await activityOf($)).toMatch(/Idle/)
+})
+
+test('a shell that left on its notification stays gone after the turn-end list', async ($, on) => {
+  answerInBackground(on)
+  await start($, on)
+
+  await startShell($)
+  await notify($, envelope({ taskId: 'b1', status: 'completed' }))
   await $.classic.Stop({ stop_hook_active: false, background_tasks: [] })
 
   expect(await activityOf($)).toMatch(/Idle/)

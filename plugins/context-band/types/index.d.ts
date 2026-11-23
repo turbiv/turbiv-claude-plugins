@@ -1,8 +1,10 @@
 export type Limit = { kind: string; percentUsed: number; resetsAt: string | null }
 
-// `plan`: a Pro/Max subscription, shown as its 5h/7d windows. `api`: API-key
-// billing, shown in US dollars.
-export type Billing = 'plan' | 'api'
+// `plan`: a Pro/Max subscription (the API reports its 5h/7d windows), shown as
+// those windows. `api`: usage billing (an API key, or a claude.ai seat whose
+// responses carry no plan windows), shown in US dollars. `pending`: a
+// claude.ai login before its first response, shown as neither.
+export type Billing = 'plan' | 'api' | 'pending'
 
 export type Meter = {
   tokens: number | null

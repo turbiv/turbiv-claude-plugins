@@ -59,48 +59,97 @@ const LIMIT_LABELS: Record<string, string> = {
   spend_limit: 'spend',
 }
 
-// The plan windows shown on a subscription, in this order, even before the
-// first response has reported a reading for them.
+// The windows only a subscription gets. Once one is reported, both are shown,
+// in this order, a dash for one with no reading yet.
 const PLAN_WINDOWS = ['five_hour', 'seven_day']
 
-// Whether the session signs in with a bearer token (claude.ai login or an
-// OAuth token: a Pro/Max subscription) rather than an API key. Set at
-// session.start; a reload runs session.start again and sets it afresh.
-let isBearer = false
+// What the band knows about how the session is billed. Set at session.start
+// and by every reading after it; a reload runs session.start again and
+// starts them afresh from what $.session.usage() reports then.
+//
+// The login kind alone does not tell: a claude.ai (bearer) login is a Pro/Max
+// subscription or a usage-billed Team/Enterprise seat. An API key is never a
+// subscription.
+let isApiKey = false
+// The cost when session.start read it, so a resumed session's past cost is
+// not taken for a response of this run.
+let usdAtStart: number | null = null
+// Whether a response of this run has reported its figures.
+let hasResponse = false
+// Whether the API has reported a 5h or 7d window: a subscription. Kept for
+// the session, so a reading without the windows (after a compaction, say)
+// does not turn the band to dollars.
+let hasPlanWindows = false
 
-const detectBilling = async ($: EngineInterface): Promise<void> => {
+const detectBilling = async ($: EngineInterface, usd: number | null): Promise<void> => {
+  hasResponse = false
+  hasPlanWindows = false
+  usdAtStart = usd
+
   try {
-    isBearer = (await $.session.authorize())?.kind === 'bearer'
+    isApiKey = (await $.session.authorize())?.kind === 'api-key'
   } catch {
-    isBearer = false
+    isApiKey = false
   }
 }
 
-// A subscription is told by the rate-limit windows the API reports, which
-// only a subscription gets; before the first response, by the login kind.
-const billingOf = (rateLimits: SessionRateLimit[]): Billing =>
-  rateLimits.some(limit => PLAN_WINDOWS.includes(limit.kind)) || isBearer ? 'plan' : 'api'
+const observe = (
+  context: SessionContextUsage,
+  rateLimits: SessionRateLimit[],
+  cost: SessionCost | undefined,
+): void => {
+  if (rateLimits.some(limit => PLAN_WINDOWS.includes(limit.kind))) {
+    hasPlanWindows = true
+  }
+
+  // A response reports rate-limit windows or adds to the cost; where the
+  // host keeps no cost ledger, it reports the context fill.
+  const isAnswered =
+    rateLimits.length > 0 ||
+    (cost === undefined
+      ? context.tokens !== undefined
+      : usdAtStart === null || cost.usd > usdAtStart)
+
+  if (isAnswered) {
+    hasResponse = true
+  }
+}
+
+// `plan` once the API reports a 5h or 7d window; `api` with an API key, or
+// once a response came without those windows (a usage-billed seat);
+// `pending` before the first response of a claude.ai login.
+const billingOf = (): Billing => {
+  if (hasPlanWindows) {
+    return 'plan'
+  }
+
+  return isApiKey || hasResponse ? 'api' : 'pending'
+}
 
 const toMeter = (
   context: SessionContextUsage,
   rateLimits: SessionRateLimit[],
   cost: SessionCost | undefined,
-): Meter => ({
-  tokens: context.tokens ?? null,
-  window: context.window,
-  percent: context.percent ?? null,
-  usd: cost?.usd ?? null,
-  billing: billingOf(rateLimits),
-  limits: rateLimits.map(({ kind, percentUsed, resetsAt }) => ({
-    kind,
-    percentUsed,
-    resetsAt: resetsAt ?? null,
-  })),
-})
+): Meter => {
+  observe(context, rateLimits, cost)
+
+  return {
+    tokens: context.tokens ?? null,
+    window: context.window,
+    percent: context.percent ?? null,
+    usd: cost?.usd ?? null,
+    billing: billingOf(),
+    limits: rateLimits.map(({ kind, percentUsed, resetsAt }) => ({
+      kind,
+      percentUsed,
+      resetsAt: resetsAt ?? null,
+    })),
+  }
+}
 
 // On a subscription: the 5h and 7d windows first (a dash until read), then
-// any other window reported. On the API: whatever windows were reported
-// (a gateway's spend limit, say).
+// any other window reported. Otherwise: whatever windows were reported (a
+// gateway's spend limit, say), with no placeholders.
 const shownLimits = (
   m: Meter,
 ): Array<Limit | { kind: string; percentUsed: null; resetsAt: null }> => {
@@ -246,8 +295,8 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     await resetActivity($)
-    await detectBilling($)
     const usage = await $.session.usage()
+    await detectBilling($, usage.cost?.usd ?? null)
     await update($, meter, () => toMeter(usage.context, usage.rateLimits, usage.cost))
 
     if ((await $.session.surfaces()).some(surface => surface !== 'terminal')) {
@@ -379,8 +428,9 @@ export const register: Register = on => {
                   </Text>
                 )
               })}
-              {/* USD only on API billing: on a subscription it is not what is paid. */}
-              {m.billing === 'plan' || m.usd === null ? null : (
+              {/* USD only on usage billing: on a subscription it is not what is
+                  paid, and before the first response it is not yet known which. */}
+              {m.billing !== 'api' || m.usd === null ? null : (
                 <Text>
                   <Text dimColor>{SEPARATOR}</Text>
                   <Text tabular color="suggestion">

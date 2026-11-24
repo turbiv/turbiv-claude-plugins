@@ -133,14 +133,19 @@ test('every mood at every level draws a balanced SVG', () => {
   }
 })
 
-test('the calm crab is the crab it was, and levels show on the moods that spend tokens', () => {
+test('the calm crab is the crab it was, and levels show on every mood but sleep', () => {
   expect(crabSvg('working', 1)).toBe(crabSvg('working', 1, 0, false))
   expect(crabSvg('working', 1)).not.toMatch(/class="[^"]*fast/)
 
-  // Asleep, waiting and watching an hourglass, the pace changes nothing.
-  for (const mood of ['idle', 'waiting', 'background'] as const) {
-    expect(crabSvg(mood, 1, 4, true)).toBe(crabSvg(mood, 1, 0, false))
-    expect(crabAlt(mood, 1, 4, true)).toBe(crabAlt(mood, 1, 0, false))
+  // Asleep, the pace changes nothing.
+  expect(crabSvg('idle', 1, 4, true)).toBe(crabSvg('idle', 1, 0, false))
+  expect(crabAlt('idle', 1, 4, true)).toBe(crabAlt('idle', 1, 0, false))
+
+  // Watching an hourglass or waiting for an answer, the pace shows, but the
+  // crab does not pant: that is for the moods that spend tokens themselves.
+  for (const mood of ['background', 'waiting'] as const) {
+    expect(crabSvg(mood, 1, 3, true)).toBe(crabSvg(mood, 1, 3, false))
+    expect(crabSvg(mood, 1, 3)).not.toBe(crabSvg(mood, 1, 0))
   }
 
   expect(crabSvg('working', 1, 1)).toMatch(/class="working fast"/)
@@ -155,10 +160,36 @@ test('the calm crab is the crab it was, and levels show on the moods that spend 
   expect(crabSvg('working', 1, 4, true)).toMatch(/class="cool"/)
 })
 
+test('the background crab turns one hourglass, then juggles several', () => {
+  expect(crabSvg('background', 1, 0)).toContain('class="glass"')
+  expect(crabSvg('background', 1, 1)).toContain('class="glass"')
+  expect(crabSvg('background', 1, 1)).toContain('--fl:1.6s')
+  expect(crabSvg('background', 1, 2)).not.toContain('class="glass"')
+  expect(crabSvg('background', 1, 2)).toMatch(/class="background j"/)
+  expect(count(crabSvg('background', 1, 2), 'class="ob"')).toBe(2)
+  expect(count(crabSvg('background', 1, 3), 'class="ob"')).toBe(3)
+  expect(count(crabSvg('background', 1, 4), 'class="ob"')).toBe(5)
+  expect(crabSvg('background', 1, 4)).toContain('class="wrap rb"')
+})
+
+test('the waiting crab hurries: it waves, hops, jumps with both claws and sounds a siren', () => {
+  expect(crabSvg('waiting', 1, 0)).toMatch(/class="waiting"/)
+  expect(crabSvg('waiting', 1, 1)).toMatch(/class="waiting wv tf"/)
+  expect(crabSvg('waiting', 1, 2)).toMatch(/class="waiting wv tf hp"/)
+  expect(crabSvg('waiting', 1, 3)).toMatch(/class="waiting wv tf hp both"/)
+  expect(crabSvg('waiting', 1, 2)).toContain('>?</text>')
+  expect(count(crabSvg('waiting', 1, 2), '>?</text>')).toBe(2)
+  expect(crabSvg('waiting', 1, 3)).toContain('>?!</text>')
+  expect(crabSvg('waiting', 1, 3)).not.toContain('class="sir"')
+  expect(crabSvg('waiting', 1, 4)).toContain('class="sir"')
+})
+
 test('the alt text says the pace, and the count past nine', () => {
   expect(crabAlt('working', 1, 0)).toBe('A crab dancing: a tool is running')
   expect(crabAlt('working', 1, 3)).toBe('A crab dancing: a tool is running (pace: frenzy)')
   expect(crabAlt('working', 1, 1, true)).toMatch(/panting/)
+  expect(crabAlt('waiting', 1, 2)).toBe('A crab with a question mark: waiting for your answer (pace: hyped)')
+  expect(crabAlt('background', 1, 4, true)).toBe('A crab watching an hourglass: background work is running (pace: meltdown)')
   expect(crabSvg('several', 12, 0)).toContain('>9+<')
 })
 
@@ -197,12 +228,12 @@ const start = async ($: any, on: any) => {
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
 }
 
-const crabNow = async ($: any): Promise<string> => {
+const crabNow = async ($: any, isWorking = true): Promise<string> => {
   const ui = await $.ui.mount({
     plugin: 'context-band',
     component: 'AbovePrompt',
     surface: 'desktop',
-    props: props(true),
+    props: props(isWorking),
   })
   const [svg] = await ui.findAll({ type: 'Svg' })
   await ui.unmount()
@@ -305,4 +336,35 @@ test('a new session starts calm', async ($, on) => {
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
 
   expect(await crabNow($)).toBe('A crab thinking: the model is working')
+})
+
+test('a background task watched right after a burst of work juggles its hourglasses', async ($, on) => {
+  stored.clear()
+  answerWith(on, 30_000)
+  await start($, on)
+
+  await step($)
+  await $.classic.Stop({
+    stop_hook_active: false,
+    background_tasks: [{ id: 'b1', type: 'shell', status: 'running', description: 'dev server' }],
+  })
+
+  expect(await crabNow($, false)).toMatch(/hourglass.*\(pace: meltdown\)/)
+})
+
+test('a question asked in the middle of a burst is asked in a hurry', async ($, on) => {
+  stored.clear()
+  let during = ''
+  answerWith(on, 30_000)
+  on('tool.call', async () => {
+    during = await crabNow($)
+
+    return { result: { answers: {} } }
+  })
+  await start($, on)
+
+  await step($)
+  await $.tool.call({ tool: 'AskUserQuestion', questions: [] })
+
+  expect(during).toMatch(/question mark.*\(pace: meltdown\)/)
 })

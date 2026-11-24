@@ -21,13 +21,15 @@ It shows:
   Beside the crab, one thing reads as a few words for it: the Bash call's description (`Running the tests`), `Reading foo.ts`, `Agent: review the diff`, or `Thinking` while the model works with no tool running. Several read as how many and of what kinds, `3 running: 2 shells, 1 agent`.
 
   It counts the main turn's tool calls in flight and the background work that outlives them (background shells, subagents, monitors, workflows). Background work shows from the call that starts it (asked for, or moved there with ctrl+b) and leaves as soon as Claude Code reports it ended (completed, failed or stopped); the whole list is also refreshed at the end of each turn from the list Claude Code keeps of work still in flight.
-- **How hard the session works**, acted out by the same crab while the model thinks, a tool runs or several things run. The pace is the output tokens (the answer, the thinking and the tool calls, subagents' too) of the last minute against the usual rate for the model:
+- **How hard the session works**, acted out by the same crab in every mood but sleep. The pace is the output tokens (the answer, the thinking and the tool calls, subagents' too) of the last minute against the usual rate for the model:
   - 0, normal: the crab as above;
-  - 1, busy (about 1.5x the usual): it dances faster, with worried brows and a sweat drop;
-  - 2, hyped (2x): steam and speed lines; while thinking, gears turn in its head; with several things running, it starts juggling;
-  - 3, frenzy (3x): it turns red and jitters, its eyes spin and sparks fly; thinking brings lightning; it juggles four balls;
-  - 4, meltdown (4x or more): rainbow colours and ghost crabs; flames and `!!` at work, rays from its head while thinking, six balls and a `9+` badge when many things run;
-  - when the pace falls back from hyped or more, it pants and fans itself for a few seconds, then comes down one level at a time.
+  - 1, busy (about 1.5x the usual): it dances faster, with worried brows and a sweat drop; the crab watching an hourglass turns it faster and taps quicker; the waiting crab waves and taps its foot;
+  - 2, hyped (2x): steam and speed lines; while thinking, gears turn in its head; with several things running, it starts juggling balls; with background work, it juggles two hourglasses; waiting, it hops and a second `?` appears;
+  - 3, frenzy (3x): it turns red and jitters, its eyes spin and sparks fly; thinking brings lightning; it juggles four balls or three hourglasses; waiting, it jumps with both claws up and the `?` becomes `?!`;
+  - 4, meltdown (4x or more): rainbow colours and ghost crabs; flames and `!!` at work, rays from its head while thinking, six balls and a `9+` badge when many things run, five hourglasses with background work, a flashing siren on its head while waiting;
+  - when the pace falls back from hyped or more, a crab at work, thinking or running several things pants and fans itself for a few seconds, then comes down one level at a time.
+
+  Waiting and background work spend no tokens of their own, so their level is the pace as it fell just before: a question asked in the middle of a burst is asked in a hurry, and the crab calms as the minute passes.
 
   The usual rate is learned, not set: only minutes in which the model actually wrote count, a burst counts for at most three times the usual rate, and each model has its own. It is kept between sessions in the plugin's own store (a small JSON file under your Claude Code configuration folder: numbers only, no prompts or replies). Until the band has seen a model for a few minutes, it uses a guess of 2,500 tokens a minute. The level reads the stream as it arrives (about 4 characters to a token) and settles on the API's own count when each response ends.
 - **Context fill**: a 12-cell bar and percent, green below 40%, amber from 40%, red from 85%, then tokens used of the window.

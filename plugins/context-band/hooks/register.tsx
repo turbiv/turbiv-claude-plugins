@@ -11,6 +11,7 @@ import type {
 import type { ActivityItem, Billing, Limit, Meter, Track } from '../types'
 import { breakdown, clipLabel, hookActivity, resetActivity, runningItems } from './activity'
 import { CRAB_HEIGHT, CRAB_WIDTH, crabAlt, crabSvg, moodOf } from './crab'
+import { hookPace, loadBaselines, resetPace, startPace } from './pace'
 
 const meter = atom({ plugin: 'context-band', key: 'meter' } as const, null)
 const track = atom({ plugin: 'context-band', key: 'track' } as const, null)
@@ -19,6 +20,8 @@ const activity = atom({ plugin: 'context-band', key: 'activity' } as const, {
   tools: [],
   background: [],
 })
+// Written by ./pace.ts, which declares the same atom.
+const pace = atom({ plugin: 'context-band', key: 'pace' } as const, { level: 0, cooling: false })
 // Whether the list of everything running is open under the band.
 const isListOpen = atom({ plugin: 'context-band', key: 'isListOpen' } as const, false)
 
@@ -291,16 +294,20 @@ const activityText = (items: ActivityItem[]): string => {
 
 export const register: Register = on => {
   hookActivity(on)
+  hookPace(on)
 
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     await resetActivity($)
+    await resetPace($)
+    await loadBaselines($)
     const usage = await $.session.usage()
     await detectBilling($, usage.cost?.usd ?? null)
     await update($, meter, () => toMeter(usage.context, usage.rateLimits, usage.cost))
 
     if ((await $.session.surfaces()).some(surface => surface !== 'terminal')) {
       startSpotify($)
+      startPace($)
     }
 
     return result
@@ -310,6 +317,7 @@ export const register: Register = on => {
   on('session.attach', ($, e, next) => {
     if (e.surface !== 'terminal') {
       startSpotify($)
+      startPace($)
     }
 
     return next(e)
@@ -348,6 +356,7 @@ export const register: Register = on => {
     const filled = filledCells(percent)
     const color = level(percent)
     const mood = moodOf(running, e.props.isWorking)
+    const temper = await read($, pace)
     const isSeveral = running.length > 1
     const isOpen = isSeveral && (await read($, isListOpen))
     const label = activityText(running)
@@ -362,8 +371,8 @@ export const register: Register = on => {
               </Text>
             ) : (
               <Svg
-                source={crabSvg(mood, running.length)}
-                alt={crabAlt(mood, running.length)}
+                source={crabSvg(mood, running.length, temper.level, temper.cooling)}
+                alt={crabAlt(mood, running.length, temper.level, temper.cooling)}
                 width={CRAB_WIDTH}
                 height={CRAB_HEIGHT}
                 isInteractive

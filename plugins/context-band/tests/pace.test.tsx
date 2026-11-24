@@ -1,0 +1,308 @@
+import { expect, test } from 'claude-code/testing'
+
+import { crabAlt, crabSvg } from '../hooks/crab'
+import {
+  FRESH,
+  LEVEL_FROM,
+  MIN_ACTIVE_RATE,
+  WINDOW_MS,
+  accumulate,
+  levelFor,
+  nextBaseline,
+  parseBaselines,
+  rateOf,
+  stepLevel,
+} from '../hooks/pace'
+
+test('the rate is the tokens of the last minute', () => {
+  const events = [
+    { at: 1_000, tokens: 500 },
+    { at: 70_000, tokens: 300 },
+    { at: 100_000, tokens: 200 },
+  ]
+
+  expect(rateOf(events, 100_000)).toBe(500)
+  expect(rateOf(events, 100_000 + WINDOW_MS)).toBe(0)
+  // A correction for an overestimate cannot make the rate negative.
+  expect(rateOf([{ at: 10, tokens: -50 }], 20)).toBe(0)
+})
+
+test('a level begins at its ratio and is held until clearly under it', () => {
+  expect(levelFor(1.4, 0)).toBe(0)
+  expect(levelFor(1.5, 0)).toBe(1)
+  expect(levelFor(2, 0)).toBe(2)
+  expect(levelFor(3, 0)).toBe(3)
+  expect(levelFor(4, 0)).toBe(4)
+  expect(levelFor(99, 0)).toBe(4)
+
+  // Just under 2x, held at hyped; well under, let go to busy.
+  expect(levelFor(1.9, 2)).toBe(2)
+  expect(levelFor(LEVEL_FROM[1] * 0.85, 2)).toBe(2)
+  expect(levelFor(1.6, 2)).toBe(1)
+})
+
+test('the crab heats up at once and cools one level every few seconds', () => {
+  let gait = { level: 0 as const, droppedAt: 0, coolUntil: 0 } as ReturnType<typeof stepLevel>
+
+  gait = stepLevel(gait, 5, 1_000)
+  expect(gait.level).toBe(4)
+
+  // The rate is gone, yet the crab steps down one level at a time.
+  gait = stepLevel(gait, 0, 10_000)
+  expect(gait.level).toBe(3)
+  gait = stepLevel(gait, 0, 11_000)
+  expect(gait.level).toBe(3)
+  gait = stepLevel(gait, 0, 13_000)
+  expect(gait.level).toBe(2)
+  expect(gait.coolUntil).toBe(0)
+
+  // Down to busy from hyped: it pants for a few seconds.
+  gait = stepLevel(gait, 0, 16_000)
+  expect(gait.level).toBe(1)
+  expect(gait.coolUntil).toBe(20_000)
+
+  // Heating up again ends the panting.
+  gait = stepLevel(gait, 5, 17_000)
+  expect(gait.level).toBe(4)
+  expect(gait.coolUntil).toBe(0)
+})
+
+test('the usual rate moves gently, and a burst does not become normal', () => {
+  const first = nextBaseline(FRESH, 2_500)
+
+  expect(first.avg).toBe(2_500)
+  expect(first.n).toBe(FRESH.n + 1)
+
+  // A huge minute counts as at most three times the usual rate, and weighs
+  // little once many minutes stand behind it.
+  const seasoned = { avg: 2_000, n: 100 }
+  const burst = nextBaseline(seasoned, 90_000)
+
+  expect(burst.avg).toBeGreaterThan(2_000)
+  expect(burst.avg).toBeLessThan(2_000 + (6_000 - 2_000) * 0.06)
+})
+
+test('only active time teaches the usual rate, a minute at a time', () => {
+  let active = { ms: 0, sum: 0 }
+  let sample: number | null = null
+
+  // Idle seconds teach nothing.
+  expect(accumulate(active, MIN_ACTIVE_RATE - 1, 1_000)).toEqual({ active, sample: null })
+
+  for (let second = 0; second < 59; second += 1) {
+    const step = accumulate(active, 3_000, 1_000)
+
+    active = step.active
+    sample = step.sample
+  }
+
+  expect(sample).toBeNull()
+
+  const last = accumulate(active, 3_000, 1_000)
+
+  expect(last.sample).toBe(3_000)
+  expect(last.active).toEqual({ ms: 0, sum: 0 })
+})
+
+test('what the store holds is read as data: only well-formed baselines stay', () => {
+  expect(parseBaselines(undefined)).toEqual({})
+  expect(parseBaselines([1, 2])).toEqual({})
+  expect(
+    parseBaselines({
+      'claude-opus-5-5': { avg: 1_800, n: 12 },
+      broken: { avg: 'x', n: 1 },
+      zero: { avg: 0, n: 1 },
+      missing: { n: 1 },
+    }),
+  ).toEqual({ 'claude-opus-5-5': { avg: 1_800, n: 12 } })
+})
+
+const count = (text: string, part: string): number => text.split(part).length - 1
+
+test('every mood at every level draws a balanced SVG', () => {
+  for (const mood of ['idle', 'thinking', 'working', 'background', 'several', 'waiting'] as const) {
+    for (const level of [0, 1, 2, 3, 4] as const) {
+      for (const cooling of [false, true]) {
+        const svg = crabSvg(mood, 3, level, cooling)
+
+        expect(count(svg, '<g')).toBe(count(svg, '</g>'))
+        expect(svg.startsWith('<svg')).toBe(true)
+        expect(svg.endsWith('</svg>')).toBe(true)
+      }
+    }
+  }
+})
+
+test('the calm crab is the crab it was, and levels show on the moods that spend tokens', () => {
+  expect(crabSvg('working', 1)).toBe(crabSvg('working', 1, 0, false))
+  expect(crabSvg('working', 1)).not.toMatch(/class="[^"]*fast/)
+
+  // Asleep, waiting and watching an hourglass, the pace changes nothing.
+  for (const mood of ['idle', 'waiting', 'background'] as const) {
+    expect(crabSvg(mood, 1, 4, true)).toBe(crabSvg(mood, 1, 0, false))
+    expect(crabAlt(mood, 1, 4, true)).toBe(crabAlt(mood, 1, 0, false))
+  }
+
+  expect(crabSvg('working', 1, 1)).toMatch(/class="working fast"/)
+  expect(crabSvg('thinking', 1, 1)).toMatch(/class="thinking tap"/)
+  expect(crabSvg('thinking', 1, 2)).toContain('class="gear"')
+  expect(crabSvg('several', 4, 2)).toContain('class="ball"')
+  expect(count(crabSvg('several', 4, 3), 'class="ball"')).toBe(4)
+  expect(count(crabSvg('several', 4, 4), 'class="ball"')).toBe(6)
+  expect(crabSvg('working', 1, 4)).toContain('class="wrap rb"')
+  expect(crabSvg('working', 1, 3)).toContain('class="shake on"')
+  expect(crabSvg('working', 1, 3)).not.toContain('class="wrap rb"')
+  expect(crabSvg('working', 1, 4, true)).toMatch(/class="cool"/)
+})
+
+test('the alt text says the pace, and the count past nine', () => {
+  expect(crabAlt('working', 1, 0)).toBe('A crab dancing: a tool is running')
+  expect(crabAlt('working', 1, 3)).toBe('A crab dancing: a tool is running (pace: frenzy)')
+  expect(crabAlt('working', 1, 1, true)).toMatch(/panting/)
+  expect(crabSvg('several', 12, 0)).toContain('>9+<')
+})
+
+// What the band draws, through the plugin: the crab's alt text.
+const props = (isWorking: boolean) => ({
+  hasSurvey: false,
+  isCollapsed: false,
+  isWorking,
+  maxRows: 10,
+  bodyColumns: 140,
+  scroll: { offset: 0, bodyRows: 10 },
+  view: {},
+})
+
+// The plugin's store, kept in memory: what a test seeds, a later session reads.
+const stored = new Map<string, unknown>()
+
+const start = async ($: any, on: any) => {
+  on('store.get', (_: unknown, e: { key: string }) => ({ value: stored.get(e.key) }))
+  on('store.set', (_: unknown, e: { key: string; value: unknown }) => {
+    stored.set(e.key, e.value)
+  })
+  on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
+  on('session.authorize', () => ({ value: { handle: 'h', kind: 'bearer' } }))
+  on('session.surfaces', () => ({ value: ['terminal'] }))
+  on('session.usage', () => ({
+    value: {
+      startedAt: 0,
+      context: { tokens: 1_000, window: 200_000, percent: 1 },
+      rateLimits: [],
+    },
+  }))
+  on('clock.now', () => ({ value: Date.now() }))
+  on('classic.Stop', () => ({}))
+  on('prompt.submit', (_: unknown, e: { text: string }) => ({ text: e.text }))
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+}
+
+const crabNow = async ($: any): Promise<string> => {
+  const ui = await $.ui.mount({
+    plugin: 'context-band',
+    component: 'AbovePrompt',
+    surface: 'desktop',
+    props: props(true),
+  })
+  const [svg] = await ui.findAll({ type: 'Svg' })
+  await ui.unmount()
+
+  return (svg as any)?.props?.alt ?? 'no crab'
+}
+
+// The engine's side of one model step: some text, then the usage it reports.
+const answerWith = (on: any, outputTokens: number, text = 'x'.repeat(400)) =>
+  on('turn.step', async function* () {
+    yield { kind: 'text', index: 0, text }
+
+    return {
+      turnId: 't1',
+      index: 0,
+      answer: text,
+      toolUses: [],
+      stopReason: 'end_turn',
+      usage: {
+        input_tokens: 10,
+        output_tokens: outputTokens,
+        cache_read_input_tokens: 90_000,
+        cache_creation_input_tokens: 0,
+        model: 'claude-opus-5-5',
+      },
+    }
+  })
+
+const step = async ($: any, agentId?: string) => {
+  const stream = $.turn.step({
+    turnId: 't1',
+    index: 0,
+    model: 'claude-opus-5-5',
+    messageCount: 3,
+    ...(agentId === undefined ? {} : { agentId }),
+  })
+
+  for await (const chunk of stream) void chunk
+
+  return stream.result
+}
+
+test('a calm session leaves the crab calm', async ($, on) => {
+  stored.clear()
+  answerWith(on, 1_000)
+  await start($, on)
+
+  await step($)
+
+  expect(await crabNow($)).toBe('A crab thinking: the model is working')
+})
+
+test('output well above the usual rate sets the crab off, and its pace shows', async ($, on) => {
+  stored.clear()
+  answerWith(on, 30_000)
+  await start($, on)
+
+  await step($)
+
+  expect(await crabNow($)).toMatch(/pace: meltdown/)
+})
+
+test('a step in between, 1.6 times the usual rate, is busy', async ($, on) => {
+  stored.clear()
+  answerWith(on, 4_000, 'x'.repeat(16_000))
+  await start($, on)
+
+  await step($)
+
+  expect(await crabNow($)).toMatch(/pace: busy/)
+})
+
+test('a subagent spends tokens too', async ($, on) => {
+  stored.clear()
+  answerWith(on, 30_000)
+  await start($, on)
+
+  await step($, 'agent-1')
+
+  expect(await crabNow($)).toMatch(/pace: meltdown/)
+})
+
+test('the usual rate the band stored decides what counts as a lot', async ($, on) => {
+  answerWith(on, 30_000)
+  stored.set('baselines', { 'claude-opus-5-5': { avg: 120_000, n: 80 } })
+  await start($, on)
+
+  await step($)
+
+  expect(await crabNow($)).toBe('A crab thinking: the model is working')
+})
+
+test('a new session starts calm', async ($, on) => {
+  stored.clear()
+  answerWith(on, 30_000)
+  await start($, on)
+  await step($)
+  expect(await crabNow($)).toMatch(/meltdown/)
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  expect(await crabNow($)).toBe('A crab thinking: the model is working')
+})

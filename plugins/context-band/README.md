@@ -31,6 +31,8 @@ It shows:
 
   Waiting and background work spend no tokens of their own, so their level is the pace as it fell just before: a question asked in the middle of a burst is asked in a hurry, and the crab calms as the minute passes.
 
+  ![Every crab state: rows for idle, thinking, working, background, several and waiting; columns for the pace from calm to meltdown, then cooling down](docs/crab-states.png)
+
   The usual rate is learned, not set: only minutes in which the model actually wrote count, a burst counts for at most three times the usual rate, and each model has its own. It is kept between sessions in the plugin's own store (a small JSON file under your Claude Code configuration folder: numbers only, no prompts or replies). Until the band has seen a model for a few minutes, it uses a guess of 2,500 tokens a minute. The level reads the stream as it arrives (about 4 characters to a token) and settles on the API's own count when each response ends.
 - **Context fill**: a 12-cell bar and percent, green below 40%, amber from 40%, red from 85%, then tokens used of the window.
 - **What you spend**, decided per session from what the API reports:

@@ -344,6 +344,7 @@ const extras = (mood: Mood, count: number, level: Level, cooling: boolean): stri
 
 const STYLE = `
 g { transform-box: fill-box; transform-origin: center; }
+.spk, .puff, .puff2, .fl, .fl2 { transform-box: fill-box; transform-origin: center; }
 @keyframes side { 0%, 100% { transform: translateX(-1px) } 50% { transform: translateX(1px) } }
 @keyframes up { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-1.5px) } }
 @keyframes lift { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-0.6px) } }

@@ -7,7 +7,8 @@ import type { ActivityItem, Level, Mood } from '../types'
 // Awake, it also acts out how hard the session works (the pace, from 0 calm to
 // 4 meltdown): faster, redder, sweating, then juggling, burning and leaving
 // ghosts. The working, thinking and several-things crabs pant for a few seconds
-// when the pace falls back from a burst.
+// when the pace falls back from a burst. Whatever it does, every few seconds
+// its right claw snaps shut twice.
 
 // The drawing's box, in the cell's own units: the crab stands in the 22 x 16
 // cell, and the margin around it holds what the higher levels add (speed
@@ -88,7 +89,7 @@ const crab = (coral: string, shade: string, eyes: string): string => {
   ].join('')
   const rightClaw = [
     rect(19, 0, 1, 2, coral),
-    rect(17, 0, 1, 2, coral),
+    `<g class="pin">${rect(17, 0, 1, 2, coral)}</g>`,
     rect(17, 2, 3, 1, coral),
     rect(18, 3, 1, 2, coral),
     rect(16, 4, 2, 1, coral),
@@ -286,13 +287,39 @@ const backgroundExtras = (level: Level): string => {
 
 const QUESTION = askMark('?', 12.6, 7.2, 6, CORAL, 'ask')
 
-// The question mark grows into more of them as the crab hurries.
+const RIM = '#5C4B42'
+const HANDLE = '#7A5236'
+
+// The magnifying glass, in its own units: the claw grips it at the origin and
+// the lens sits up and to the left. The stylesheet carries it from beside the
+// crab's head to its right eye and back.
+const LENS = [
+  `<g class="lens" shape-rendering="geometricPrecision">`,
+  `<line x1="0.3" y1="0.3" x2="-3.4" y2="-3.4" stroke="${HANDLE}" stroke-width="0.8" stroke-linecap="round"/>`,
+  `<circle cx="-5" cy="-5" r="2.2" fill="#CFE3F2" fill-opacity="0.35" stroke="${RIM}" stroke-width="0.6"/>`,
+  `<path d="M-6.4 -5.4 Q-6.1 -6.3 -5.2 -6.5" fill="none" stroke="#FAF9F5" stroke-width="0.4" stroke-linecap="round"/>`,
+  `</g>`,
+].join('')
+
+// What the lens shows over the right eye: the eye, twice its size, and it blinks.
+const ZOOM = [
+  `<clipPath id="lens-in"><circle cx="13.5" cy="11" r="2"/></clipPath>`,
+  `<g class="zoom" clip-path="url(#lens-in)">`,
+  `<circle cx="13.5" cy="11" r="2" fill="${CORAL}"/>`,
+  `<g class="beye">${rect(12.5, 9.2, 2, 3.6, EYE)}${rect(12.75, 9.5, 0.7, 0.7, '#FAF9F5')}</g>`,
+  `</g>`,
+].join('')
+
+const GLASS = ZOOM + LENS + askMark('?', 7.4, 7.4, 5, CORAL, 'pop')
+
+// Calm and busy, the crab looks itself in the eye through the glass, then
+// asks; hurrying, the question mark grows into more of them.
 const waitingExtras = (level: Level): string => {
   switch (level) {
     case 0:
-      return QUESTION
+      return GLASS
     case 1:
-      return QUESTION + sweat(18.4, 'drip')
+      return GLASS + sweat(18.4, 'drip')
     case 2:
       return QUESTION + askMark('?', 16.8, 4.4, 4.5, CORAL, 'ask') + STEAM + sweat(18.4, 'drip')
     case 3:
@@ -372,6 +399,7 @@ g { transform-box: fill-box; transform-origin: center; }
 @keyframes wavel { 0%, 100% { transform: rotate(18deg) translateY(-2px) } 50% { transform: rotate(-18deg) translateY(-2px) } }
 @keyframes tapc { 0%, 100% { transform: translate(-2px, 2px) } 50% { transform: translate(-2px, 0.8px) } }
 @keyframes pulsebadge { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.18) } }
+@keyframes snap { 0%, 84%, 88%, 92%, 100% { transform: translateX(0) } 86%, 90% { transform: translateX(1px) } }
 @keyframes pant { 0%, 100% { transform: scaleY(1) } 50% { transform: scaleY(1.07) } }
 @keyframes orbit { 0% { transform: translate(7.5px, 0) } 12.5% { transform: translate(5.3px, 2.1px) } 25% { transform: translate(0, 3px) } 37.5% { transform: translate(-5.3px, 2.1px) } 50% { transform: translate(-7.5px, 0) } 62.5% { transform: translate(-5.3px, -2.1px) } 75% { transform: translate(0, -3px) } 87.5% { transform: translate(5.3px, -2.1px) } 100% { transform: translate(7.5px, 0) } }
 
@@ -400,6 +428,33 @@ g { transform-box: fill-box; transform-origin: center; }
 
 .waiting .cr { transform: translateY(-2px); }
 .waiting .ask { animation: bob var(--q) ease-in-out infinite; }
+
+.lens { transform-box: view-box; transform-origin: 0 0; transform: translate(19.5px, 4px) rotate(-15deg); }
+.zoom { opacity: 0; }
+.beye { transform-box: fill-box; transform-origin: center; }
+.pop { transform-box: fill-box; transform-origin: center; }
+@keyframes mgl { 0%, 12%, 82%, 100% { transform: translate(19.5px, 4px) rotate(-15deg) } 28%, 66% { transform: translate(18.5px, 6px) rotate(-90deg) } }
+@keyframes mgc { 0%, 12%, 82%, 100% { transform: translate(0, -2px) } 28%, 66% { transform: translate(-1px, 0) } }
+@keyframes zoom { 0%, 27% { opacity: 0; transform: scale(0.45) } 36%, 63% { opacity: 1; transform: scale(1) } 68%, 100% { opacity: 0; transform: scale(0.45) } }
+@keyframes bl { 0%, 47%, 53%, 100% { transform: scaleY(1) } 50% { transform: scaleY(0.1) } }
+@keyframes pop { 0%, 82% { opacity: 0; transform: scale(0.3) } 87% { opacity: 1; transform: scale(1.2) } 90%, 96% { opacity: 1; transform: scale(1) } 100% { opacity: 0; transform: scale(1) } }
+.mg .lens { animation: mgl var(--g) ease-in-out infinite; }
+.mg .cr, svg.mg:hover .cr { animation: mgc var(--g) ease-in-out infinite; }
+.mg .zoom { animation: zoom var(--g) ease-in-out infinite; }
+.mg .beye { animation: bl var(--g) steps(1) infinite; }
+.mg .pop { animation: pop var(--g) ease-out infinite; }
+svg.mg:hover .cl, svg.mgx:hover .cl { animation: wavel 0.4s ease-in-out infinite; }
+/* Busy, the look is nervous: the glass shakes, the eye blinks twice and the ? jumps out. */
+@keyframes mglx { 0%, 10%, 84%, 100% { transform: translate(19.5px, 4px) rotate(-15deg) } 22% { transform: translate(18px, 6.6px) rotate(-100deg) } 27%, 64% { transform: translate(18.5px, 6px) rotate(-90deg) } 32% { transform: translate(19.0px, 5.7px) rotate(-90deg) } 36% { transform: translate(18.1px, 6.3px) rotate(-90deg) } 40% { transform: translate(18.8px, 6.4px) rotate(-90deg) } 44% { transform: translate(18.0px, 5.8px) rotate(-90deg) } 48% { transform: translate(18.9px, 6.2px) rotate(-90deg) } 52% { transform: translate(18.2px, 5.6px) rotate(-90deg) } 56% { transform: translate(19.0px, 6.1px) rotate(-90deg) } 60% { transform: translate(18.3px, 6.3px) rotate(-90deg) } }
+@keyframes mgcx { 0%, 10%, 84%, 100% { transform: translate(0, -2px) } 22% { transform: translate(-1.5px, 0.6px) } 27%, 64% { transform: translate(-1px, 0) } 32% { transform: translate(-0.5px, -0.3px) } 36% { transform: translate(-1.4px, 0.3px) } 40% { transform: translate(-0.7px, 0.4px) } 44% { transform: translate(-1.5px, -0.2px) } 48% { transform: translate(-0.6px, 0.2px) } 52% { transform: translate(-1.3px, -0.4px) } 56% { transform: translate(-0.5px, 0.1px) } 60% { transform: translate(-1.2px, 0.3px) } }
+@keyframes zoomx { 0%, 24% { opacity: 0; transform: translate(0, 0) scale(0.45) } 29% { opacity: 1; transform: translate(0, 0) scale(1.3) } 32% { opacity: 1; transform: translate(0.5px, -0.3px) scale(1) } 36% { opacity: 1; transform: translate(-0.4px, 0.3px) scale(1) } 40% { opacity: 1; transform: translate(0.3px, 0.4px) scale(1) } 44% { opacity: 1; transform: translate(-0.5px, -0.2px) scale(1) } 48% { opacity: 1; transform: translate(0.4px, 0.2px) scale(1) } 52% { opacity: 1; transform: translate(-0.3px, -0.4px) scale(1) } 56% { opacity: 1; transform: translate(0.5px, 0.1px) scale(1) } 60% { opacity: 1; transform: translate(-0.2px, 0.3px) scale(1) } 64% { opacity: 1; transform: translate(0, 0) scale(1) } 68%, 100% { opacity: 0; transform: translate(0, 0) scale(0.45) } }
+@keyframes blx { 0% { transform: scaleY(1) } 42% { transform: scaleY(0.1) } 45% { transform: scaleY(1) } 50% { transform: scaleY(0.1) } 53% { transform: scaleY(1) } }
+@keyframes popx { 0%, 84% { opacity: 0; transform: scale(0.3) } 88% { opacity: 1; transform: scale(1.5) } 91%, 97% { opacity: 1; transform: scale(1) } 100% { opacity: 0; transform: scale(1) } }
+.mgx .lens { animation: mglx var(--g) ease-in-out infinite; }
+.mgx .cr, svg.mgx:hover .cr { animation: mgcx var(--g) ease-in-out infinite; }
+.mgx .zoom { animation: zoomx var(--g) linear infinite; }
+.mgx .beye { animation: blx var(--g) steps(1) infinite; }
+.mgx .pop { animation: popx var(--g) ease-out infinite; }
 
 .fast .crab { animation: side calc(var(--t) * 2) steps(1) infinite; }
 .fast .cl { animation: up var(--t) steps(1) infinite; }
@@ -444,6 +499,8 @@ g { transform-box: fill-box; transform-origin: center; }
 .ray2 { animation: flick 0.16s steps(1) infinite 0.08s; }
 .ball { animation: orbit var(--p) linear infinite; }
 
+.pin { animation: snap 5s steps(1) infinite; }
+
 .cool .crab, .cool .cl, .cool .legs-a, .cool .legs-b { animation: none; }
 .cool .body { animation: pant 0.8s ease-in-out infinite; }
 .cool .cr { animation: wave 0.9s ease-in-out infinite; transform: none; }
@@ -471,6 +528,8 @@ const ASK = ['1s', '0.5s', '0.35s', '0.25s', '0.2s'] as const
 const WAVE = ['1s', '0.8s', '0.4s', '0.25s', '0.2s'] as const
 const FOOT = ['0.5s', '0.5s', '0.25s', '0.15s', '0.1s'] as const
 const HOP = ['0.5s', '0.5s', '0.5s', '0.3s', '0.2s'] as const
+// The waiting crab at calm and busy: one look through the magnifying glass.
+const LOOK = ['4s', '2.2s', '2.2s', '2.2s', '2.2s'] as const
 
 // The SVG for a mood, how hard the session works and whether the pace just
 // fell back. Working, the calm crab dances for three seconds and then bobs
@@ -494,7 +553,10 @@ export const crabSvg = (mood: Mood, count: number, level: Level = 0, cooling = f
     lv >= 1 && !cool && (mood === 'working' || mood === 'several') ? 'fast' : '',
     lv >= 1 && !cool && mood === 'thinking' ? 'tap' : '',
     lv >= 2 && mood === 'background' ? 'j' : '',
-    lv >= 1 && mood === 'waiting' ? 'wv tf' : '',
+    lv === 0 && mood === 'waiting' ? 'mg' : '',
+    lv === 1 && mood === 'waiting' ? 'mgx' : '',
+    lv >= 2 && mood === 'waiting' ? 'wv' : '',
+    lv >= 1 && mood === 'waiting' ? 'tf' : '',
     lv >= 2 && mood === 'waiting' ? 'hp' : '',
     lv >= 3 && mood === 'waiting' ? 'both' : '',
   ]
@@ -503,7 +565,7 @@ export const crabSvg = (mood: Mood, count: number, level: Level = 0, cooling = f
   const orbit = mood === 'background' ? JUGGLE[lv] : ORBIT[lv]
   const vars =
     `--t:${BEAT[lv]};--d:${THOUGHT_BEAT[lv]};--p:${orbit};--tp:${TAP[lv]};--fl:${TURN[lv]};` +
-    `--q:${ASK[lv]};--w:${WAVE[lv]};--tf:${FOOT[lv]};--h:${HOP[lv]}`
+    `--q:${ASK[lv]};--w:${WAVE[lv]};--tf:${FOOT[lv]};--h:${HOP[lv]};--g:${LOOK[lv]}`
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}" ` +
@@ -530,7 +592,9 @@ export const crabAlt = (mood: Mood, count: number, level: Level = 0, cooling = f
       case 'several':
         return `A crab with a badge of ${count}: several things are running`
       case 'waiting':
-        return 'A crab with a question mark: waiting for your answer'
+        return level <= 1
+          ? 'A crab looking through a magnifying glass: waiting for your answer'
+          : 'A crab with a question mark: waiting for your answer'
     }
   })()
 

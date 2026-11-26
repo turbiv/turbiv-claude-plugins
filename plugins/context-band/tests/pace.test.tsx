@@ -172,9 +172,20 @@ test('the background crab turns one hourglass, then juggles several', () => {
   expect(crabSvg('background', 1, 4)).toContain('class="wrap rb"')
 })
 
-test('the waiting crab hurries: it waves, hops, jumps with both claws and sounds a siren', () => {
-  expect(crabSvg('waiting', 1, 0)).toMatch(/class="waiting"/)
-  expect(crabSvg('waiting', 1, 1)).toMatch(/class="waiting wv tf"/)
+test('the waiting crab looks through a magnifying glass, then hurries: it waves, hops, jumps and sounds a siren', () => {
+  expect(crabSvg('waiting', 1, 0)).toMatch(/class="waiting mg"/)
+  expect(crabSvg('waiting', 1, 1)).toMatch(/class="waiting mgx tf"/)
+  for (const level of [0, 1] as const) {
+    const svg = crabSvg('waiting', 1, level)
+
+    expect(svg).toContain('class="lens"')
+    expect(svg).toContain('class="zoom"')
+    expect(svg).toContain('class="beye"')
+    expect(svg).toContain('class="pop"')
+    expect(svg).not.toContain('class="ask"')
+  }
+  expect(crabSvg('waiting', 1, 0)).toContain('--g:4s')
+  expect(crabSvg('waiting', 1, 2)).not.toContain('class="lens"')
   expect(crabSvg('waiting', 1, 2)).toMatch(/class="waiting wv tf hp"/)
   expect(crabSvg('waiting', 1, 3)).toMatch(/class="waiting wv tf hp both"/)
   expect(crabSvg('waiting', 1, 2)).toContain('>?</text>')
@@ -184,10 +195,18 @@ test('the waiting crab hurries: it waves, hops, jumps with both claws and sounds
   expect(crabSvg('waiting', 1, 4)).toContain('class="sir"')
 })
 
+test('every crab snaps its right claw, the ghosts too', () => {
+  for (const mood of ['idle', 'thinking', 'working', 'background', 'several', 'waiting'] as const) {
+    expect(count(crabSvg(mood, 3, 0), 'class="pin"')).toBe(1)
+  }
+  expect(count(crabSvg('working', 1, 4), 'class="pin"')).toBe(3)
+})
+
 test('the alt text says the pace, and the count past nine', () => {
   expect(crabAlt('working', 1, 0)).toBe('A crab dancing: a tool is running')
   expect(crabAlt('working', 1, 3)).toBe('A crab dancing: a tool is running (pace: frenzy)')
   expect(crabAlt('working', 1, 1, true)).toMatch(/panting/)
+  expect(crabAlt('waiting', 1, 0)).toBe('A crab looking through a magnifying glass: waiting for your answer')
   expect(crabAlt('waiting', 1, 2)).toBe('A crab with a question mark: waiting for your answer (pace: hyped)')
   expect(crabAlt('background', 1, 4, true)).toBe('A crab watching an hourglass: background work is running (pace: meltdown)')
   expect(crabSvg('several', 12, 0)).toContain('>9+<')

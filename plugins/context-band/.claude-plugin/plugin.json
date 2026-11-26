@@ -1,6 +1,6 @@
 {
   "name": "context-band",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Band above the prompt: what the session is running and how hard it works (a pixel crab acts both out), context fill, plan usage (5h/7d) on a subscription or USD on usage billing, and Spotify's current track",
   "author": {
     "name": "Ivan Turbin"

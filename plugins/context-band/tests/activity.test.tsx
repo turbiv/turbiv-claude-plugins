@@ -371,5 +371,5 @@ test('a question to you shows the waiting crab', async ($, on) => {
 
   await $.tool.call({ tool: 'AskUserQuestion', questions: [] })
 
-  expect(during).toMatch(/question mark.*Waiting for your answer/)
+  expect(during).toMatch(/magnifying glass.*Waiting for your answer/)
 })

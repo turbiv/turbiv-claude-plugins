@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { crabAlt, crabSvg } from '../hooks/crab'
+import { conductBar, crabAlt, crabSvg } from '../hooks/crab'
 import {
   FRESH,
   LEVEL_FROM,
@@ -141,35 +141,43 @@ test('the calm crab is the crab it was, and levels show on every mood but sleep'
   expect(crabSvg('idle', 1, 4, true)).toBe(crabSvg('idle', 1, 0, false))
   expect(crabAlt('idle', 1, 4, true)).toBe(crabAlt('idle', 1, 0, false))
 
-  // Watching an hourglass or waiting for an answer, the pace shows, but the
+  // Cranking the factory or waiting for an answer, the pace shows, but the
   // crab does not pant: that is for the moods that spend tokens themselves.
   for (const mood of ['background', 'waiting'] as const) {
     expect(crabSvg(mood, 1, 3, true)).toBe(crabSvg(mood, 1, 3, false))
     expect(crabSvg(mood, 1, 3)).not.toBe(crabSvg(mood, 1, 0))
   }
 
-  expect(crabSvg('working', 1, 1)).toMatch(/class="working fast"/)
+  expect(crabSvg('working', 1, 1)).toMatch(/class="working hm"/)
   expect(crabSvg('thinking', 1, 1)).toMatch(/class="thinking tap"/)
   expect(crabSvg('thinking', 1, 2)).toContain('class="gear"')
-  expect(crabSvg('several', 4, 2)).toContain('class="ball"')
-  expect(count(crabSvg('several', 4, 3), 'class="ball"')).toBe(4)
-  expect(count(crabSvg('several', 4, 4), 'class="ball"')).toBe(6)
   expect(crabSvg('working', 1, 4)).toContain('class="wrap rb"')
   expect(crabSvg('working', 1, 3)).toContain('class="shake on"')
   expect(crabSvg('working', 1, 3)).not.toContain('class="wrap rb"')
   expect(crabSvg('working', 1, 4, true)).toMatch(/class="cool"/)
 })
 
-test('the background crab turns one hourglass, then juggles several', () => {
-  expect(crabSvg('background', 1, 0)).toContain('class="glass"')
-  expect(crabSvg('background', 1, 1)).toContain('class="glass"')
-  expect(crabSvg('background', 1, 1)).toContain('--fl:1.6s')
-  expect(crabSvg('background', 1, 2)).not.toContain('class="glass"')
-  expect(crabSvg('background', 1, 2)).toMatch(/class="background j"/)
-  expect(count(crabSvg('background', 1, 2), 'class="ob"')).toBe(2)
-  expect(count(crabSvg('background', 1, 3), 'class="ob"')).toBe(3)
-  expect(count(crabSvg('background', 1, 4), 'class="ob"')).toBe(5)
+test('the background crab cranks a factory that shows money from hyped and burns it from frenzy', () => {
+  for (const level of [0, 1, 2, 3, 4] as const) {
+    expect(crabSvg('background', 1, level)).toContain('class="mach"')
+    expect(crabSvg('background', 1, level)).toContain('class="arm"')
+  }
+  expect(crabSvg('background', 1, 0)).toContain('--run:0.75s')
+  expect(crabSvg('background', 1, 4)).toContain('--run:0.12s')
+  expect(count(crabSvg('background', 1, 0), 'class="smk"')).toBe(2)
+  expect(count(crabSvg('background', 1, 3), 'class="smk"')).toBe(6)
+  expect(crabSvg('background', 1, 1)).not.toContain('class="cash"')
+  expect(count(crabSvg('background', 1, 2), 'class="cash"')).toBe(2)
+  expect(crabSvg('background', 1, 2)).not.toContain('class="bill"')
+  expect(count(crabSvg('background', 1, 3), 'class="bill"')).toBe(4)
+  expect(count(crabSvg('background', 1, 4), 'class="bill"')).toBe(8)
+  expect(count(crabSvg('background', 1, 4), 'class="coin"')).toBe(4)
+  expect(crabSvg('background', 1, 4)).toContain('class="cf"')
+  expect(crabSvg('background', 1, 3)).not.toContain('class="cf"')
   expect(crabSvg('background', 1, 4)).toContain('class="wrap rb"')
+  // The factory stands behind the crab.
+  const svg = crabSvg('background', 1, 0)
+  expect(svg.indexOf('class="mach"')).toBeLessThan(svg.indexOf('class="crab"'))
 })
 
 test('the waiting crab looks through a magnifying glass, then hurries: it waves, hops, jumps and sounds a siren', () => {
@@ -195,6 +203,52 @@ test('the waiting crab looks through a magnifying glass, then hurries: it waves,
   expect(crabSvg('waiting', 1, 4)).toContain('class="sir"')
 })
 
+test('asleep, the crab lies tucked in under drifting z\'s', () => {
+  const idle = crabSvg('idle', 1)
+
+  expect(idle).toContain('class="zz"')
+  expect(count(idle, '>z<') + count(idle, '>Z<')).toBe(3)
+  // Lying down: the body sinks onto folded legs, one pixel high.
+  expect(idle).toContain('<rect x="4" y="5" width="12" height="4"')
+  expect(idle).toContain('<rect x="5" y="10" width="1" height="1"')
+  expect(crabSvg('working', 1)).toContain('<rect x="4" y="4" width="12" height="4"')
+})
+
+test('thinking, the crab paces sideways with its thoughts; cooling, it stands', () => {
+  expect(crabSvg('thinking', 1, 0)).toContain('<g class="walk">')
+  expect(crabSvg('thinking', 1, 0)).toContain('--wk:6s')
+  expect(crabSvg('thinking', 1, 4)).toContain('--wk:1.4s')
+  expect(crabSvg('thinking', 1, 3, true)).not.toContain('class="walk"')
+  expect(crabSvg('working', 1, 0)).not.toContain('class="walk"')
+})
+
+test('at work, the crab hammers; hyped it wipes its brow, from frenzy it swings two hammers', () => {
+  expect(count(crabSvg('working', 1, 0), 'class="ham ')).toBe(1)
+  expect(crabSvg('working', 1, 2)).toMatch(/class="working hm hy"/)
+  expect(crabSvg('working', 1, 2)).toContain('class="fling"')
+  expect(count(crabSvg('working', 1, 2), 'class="ham ')).toBe(1)
+  expect(crabSvg('working', 1, 3)).toMatch(/class="working hm two"/)
+  expect(count(crabSvg('working', 1, 3), 'class="ham ')).toBe(2)
+  // Meltdown heats the nails instead of setting the crab's head on fire.
+  expect(crabSvg('working', 1, 4)).toContain('class="heat r"')
+  expect(crabSvg('working', 1, 3)).not.toContain('class="heat')
+  expect(crabSvg('working', 1, 3, true)).not.toContain('class="ham ')
+})
+
+test('with several things running, the crab conducts: the count sets the tempo, the pace speeds it up', () => {
+  expect(crabSvg('several', 3, 0)).toMatch(/class="several cond"/)
+  expect(crabSvg('several', 3, 1)).toMatch(/class="several cond tf"/)
+  expect(conductBar(2, 0)).toBe(2)
+  expect(conductBar(3, 0)).toBe(1.6)
+  expect(conductBar(6, 0)).toBe(0.9)
+  expect(conductBar(12, 0)).toBe(0.9)
+  expect(conductBar(3, 4)).toBe(0.53)
+  expect(crabSvg('several', 3, 4)).toContain('--bar:0.53s')
+  // The ghosts conduct too, and nobody juggles.
+  expect(count(crabSvg('several', 3, 4), 'stroke-width="0.45"')).toBe(3)
+  expect(crabSvg('several', 3, 4)).not.toContain('class="ob"')
+})
+
 test('every crab snaps its right claw, the ghosts too', () => {
   for (const mood of ['idle', 'thinking', 'working', 'background', 'several', 'waiting'] as const) {
     expect(count(crabSvg(mood, 3, 0), 'class="pin"')).toBe(1)
@@ -203,12 +257,15 @@ test('every crab snaps its right claw, the ghosts too', () => {
 })
 
 test('the alt text says the pace, and the count past nine', () => {
-  expect(crabAlt('working', 1, 0)).toBe('A crab dancing: a tool is running')
-  expect(crabAlt('working', 1, 3)).toBe('A crab dancing: a tool is running (pace: frenzy)')
+  expect(crabAlt('idle', 1, 0)).toBe('A crab asleep, tucked in: nothing is running')
+  expect(crabAlt('working', 1, 0)).toBe('A crab hammering a nail: a tool is running')
+  expect(crabAlt('working', 1, 3)).toBe('A crab hammering a nail: a tool is running (pace: frenzy)')
+  expect(crabAlt('several', 3, 0)).toBe('A crab conducting under a badge of 3: several things are running')
   expect(crabAlt('working', 1, 1, true)).toMatch(/panting/)
   expect(crabAlt('waiting', 1, 0)).toBe('A crab looking through a magnifying glass: waiting for your answer')
   expect(crabAlt('waiting', 1, 2)).toBe('A crab with a question mark: waiting for your answer (pace: hyped)')
-  expect(crabAlt('background', 1, 4, true)).toBe('A crab watching an hourglass: background work is running (pace: meltdown)')
+  expect(crabAlt('background', 1, 1)).toBe('A crab cranking its factory: background work is running (pace: busy)')
+  expect(crabAlt('background', 1, 4, true)).toBe('A crab cranking its factory, burning money: background work is running (pace: meltdown)')
   expect(crabSvg('several', 12, 0)).toContain('>9+<')
 })
 
@@ -302,7 +359,7 @@ test('a calm session leaves the crab calm', async ($, on) => {
 
   await step($)
 
-  expect(await crabNow($)).toBe('A crab thinking: the model is working')
+  expect(await crabNow($)).toBe('A crab pacing, claw on its chin: the model is working')
 })
 
 test('output well above the usual rate sets the crab off, and its pace shows', async ($, on) => {
@@ -342,7 +399,7 @@ test('the usual rate the band stored decides what counts as a lot', async ($, on
 
   await step($)
 
-  expect(await crabNow($)).toBe('A crab thinking: the model is working')
+  expect(await crabNow($)).toBe('A crab pacing, claw on its chin: the model is working')
 })
 
 test('a new session starts calm', async ($, on) => {
@@ -354,10 +411,10 @@ test('a new session starts calm', async ($, on) => {
 
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
 
-  expect(await crabNow($)).toBe('A crab thinking: the model is working')
+  expect(await crabNow($)).toBe('A crab pacing, claw on its chin: the model is working')
 })
 
-test('a background task watched right after a burst of work juggles its hourglasses', async ($, on) => {
+test('a background task watched right after a burst of work burns money in the factory', async ($, on) => {
   stored.clear()
   answerWith(on, 30_000)
   await start($, on)
@@ -368,7 +425,7 @@ test('a background task watched right after a burst of work juggles its hourglas
     background_tasks: [{ id: 'b1', type: 'shell', status: 'running', description: 'dev server' }],
   })
 
-  expect(await crabNow($, false)).toMatch(/hourglass.*\(pace: meltdown\)/)
+  expect(await crabNow($, false)).toMatch(/factory, burning money.*\(pace: meltdown\)/)
 })
 
 test('a question asked in the middle of a burst is asked in a hurry', async ($, on) => {

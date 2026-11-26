@@ -11,22 +11,22 @@ With the count opened, the band lists each thing that runs:
 It shows:
 
 - **What the session is running**, first, so you can tell a working session from an idle one. A small pixel crab acts it out (desktop and mobile; hover it and it waves; every few seconds it snaps its right claw):
-  - nothing: the crab sleeps, `Idle`;
-  - the model thinking: a thought bubble;
-  - one tool: the crab dances for a few seconds, then bobs slowly (it dances again when the state changes);
-  - only background work left: it watches an hourglass;
+  - nothing: the crab sleeps tucked in, claws on the ground, breathing slowly under drifting z's, `Idle`;
+  - the model thinking: it paces sideways back and forth, claw on its chin, thought dots going with it;
+  - one tool: it hammers a nail on a block beside it, sparks flying on each strike;
+  - only background work left: it cranks a little factory, its gauge swinging, the furnace glowing, a puff of smoke now and then;
   - waiting for your answer: it holds a magnifying glass up to its eye (the lens shows the eye twice its size, and it blinks), lowers it and a `?` pops up;
-  - several things: the crab wears a badge with the count, and the count beside it opens a list of each one.
+  - several things: it conducts them with a baton under a badge with the count, faster the more things run (a bar of four beats takes 2 s for two, down to 0.9 s from six); the count beside it opens a list of each one.
 
   Beside the crab, one thing reads as a few words for it: the Bash call's description (`Running the tests`), `Reading foo.ts`, `Agent: review the diff`, or `Thinking` while the model works with no tool running. Several read as how many and of what kinds, `3 running: 2 shells, 1 agent`.
 
   It counts the main turn's tool calls in flight and the background work that outlives them (background shells, subagents, monitors, workflows). Background work shows from the call that starts it (asked for, or moved there with ctrl+b) and leaves as soon as Claude Code reports it ended (completed, failed or stopped); the whole list is also refreshed at the end of each turn from the list Claude Code keeps of work still in flight.
 - **How hard the session works**, acted out by the same crab in every mood but sleep. The pace is the output tokens (the answer, the thinking and the tool calls, subagents' too) of the last minute against the usual rate for the model:
   - 0, normal: the crab as above;
-  - 1, busy (about 1.5x the usual): it dances faster, with worried brows and a sweat drop; the crab watching an hourglass turns it faster and taps quicker; the waiting crab looks through its glass faster and more nervously, the glass shaking and the eye blinking twice, and taps its foot;
-  - 2, hyped (2x): steam and speed lines; while thinking, gears turn in its head; with several things running, it starts juggling balls; with background work, it juggles two hourglasses; waiting, it puts the glass away, waves, hops and two `?` appear;
-  - 3, frenzy (3x): it turns red and jitters, its eyes spin and sparks fly; thinking brings lightning; it juggles four balls or three hourglasses; waiting, it jumps with both claws up and the `?` becomes `?!`;
-  - 4, meltdown (4x or more): rainbow colours and ghost crabs; flames and `!!` at work, rays from its head while thinking, six balls and a `9+` badge when many things run, five hourglasses with background work, a flashing siren on its head while waiting;
+  - 1, busy (about 1.5x the usual): worried brows and a sweat drop, and every act goes faster: the walk, the hammer, the conducting, the crank; the waiting crab looks through its glass more nervously, the glass shaking and the eye blinking twice, and taps its foot;
+  - 2, hyped (2x): steam; while thinking, gears turn in its head; at work it wipes its brow between strikes; the factory smokes more and money shows in its furnace; waiting, it puts the glass away, waves, hops and two `?` appear;
+  - 3, frenzy (3x): it turns red and jitters, its eyes spin and sparks fly; thinking brings lightning; at work a second hammer strikes a second block in turn; the factory belches dark smoke and burns money, bills flying out of the chimney as ash; waiting, it jumps with both claws up and the `?` becomes `?!`;
+  - 4, meltdown (4x or more): rainbow colours and ghost crabs, which act along; `!!` and red-hot nails at work, rays from its head while thinking, the factory's chimney on fire with money pouring out, a flashing siren on its head while waiting;
   - when the pace falls back from hyped or more, a crab at work, thinking or running several things pants and fans itself for a few seconds, then comes down one level at a time.
 
   Waiting and background work spend no tokens of their own, so their level is the pace as it fell just before: a question asked in the middle of a burst is asked in a hurry, and the crab calms as the minute passes.

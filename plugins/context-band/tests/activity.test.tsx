@@ -95,7 +95,7 @@ test('nothing running reads Idle', async ($, on) => {
 test('a running model turn with no tool reads Thinking', async ($, on) => {
   await start($, on)
 
-  expect(await activityOf($, true)).toMatch(/crab thinking.*\|Thinking/)
+  expect(await activityOf($, true)).toMatch(/crab pacing.*\|Thinking/)
 })
 
 test('one tool call in flight says what it does, and goes when it ends', async ($, on) => {
@@ -108,7 +108,7 @@ test('one tool call in flight says what it does, and goes when it ends', async (
 
   await $.tool.call({ tool: 'Bash', command: 'npm test', description: 'Running the tests' })
 
-  expect(during).toMatch(/crab dancing.*\|Running the tests/)
+  expect(during).toMatch(/crab hammering.*\|Running the tests/)
   expect(await activityOf($)).toMatch(/Idle/)
 })
 
@@ -123,7 +123,7 @@ test('a backgrounded shell stays until the turn-end list drops it', async ($, on
     run_in_background: true,
   })
 
-  expect(await activityOf($)).toMatch(/hourglass.*\|Start dev server/)
+  expect(await activityOf($)).toMatch(/factory.*\|Start dev server/)
 
   await $.classic.Stop({ stop_hook_active: false, background_tasks: [] })
 
@@ -137,7 +137,7 @@ test('with no turn-end list, a background shell leaves when its notification say
   await start($, on)
 
   await startShell($)
-  expect(await activityOf($)).toMatch(/hourglass.*\|Start dev server/)
+  expect(await activityOf($)).toMatch(/factory.*\|Start dev server/)
 
   await notify($, envelope({ taskId: 'b1', status: 'completed' }))
 
@@ -153,7 +153,7 @@ test('with no turn-end list, a failed shell and a killed monitor leave too', asy
   expect(await activityOf($)).toMatch(/2 running: 1 shell, 1 monitor/)
 
   await notify($, envelope({ taskId: 'b1', status: 'failed' }))
-  expect(await activityOf($)).toMatch(/hourglass.*\|Watch the log/)
+  expect(await activityOf($)).toMatch(/factory.*\|Watch the log/)
 
   await notify($, envelope({ taskId: 'm1', status: 'killed' }))
   expect(await activityOf($)).toMatch(/Idle/)
@@ -168,7 +168,7 @@ test('with no turn-end list, a workflow and a background agent show from their c
   expect(await activityOf($)).toMatch(/2 running: 1 workflow, 1 agent/)
 
   await notify($, envelope({ taskId: 'w1', status: 'completed' }))
-  expect(await activityOf($)).toMatch(/hourglass.*\|Agent: review the diff/)
+  expect(await activityOf($)).toMatch(/factory.*\|Agent: review the diff/)
 
   await notify($, envelope({ taskId: 'a1', status: 'completed' }))
   expect(await activityOf($)).toMatch(/Idle/)
@@ -180,7 +180,7 @@ test('a workflow reads as its own name from the result', async ($, on) => {
 
   await $.tool.call({ tool: 'Workflow', script: 'export const meta = {}' })
 
-  expect(await activityOf($)).toMatch(/hourglass.*\|Workflow review-changes/)
+  expect(await activityOf($)).toMatch(/factory.*\|Workflow review-changes/)
 })
 
 // The result says whether work went to the background, not the call's ask.
@@ -191,7 +191,7 @@ test('a command the engine moved to the background unasked (ctrl+b) shows until 
   await start($, on)
 
   await $.tool.call({ tool: 'Bash', command: 'npm run build', description: 'Build the app' })
-  expect(await activityOf($)).toMatch(/hourglass.*\|Build the app/)
+  expect(await activityOf($)).toMatch(/factory.*\|Build the app/)
 
   await notify($, envelope({ taskId: 'b2', status: 'completed' }))
   expect(await activityOf($)).toMatch(/Idle/)
@@ -217,7 +217,7 @@ test('a monitor event with no status leaves the monitor running', async ($, on) 
     envelope({ taskId: 'm1', summary: 'Monitor event', rest: '<event>job 7 <status>completed</status></event>' }),
   )
 
-  expect(await activityOf($)).toMatch(/hourglass.*\|Watch the log/)
+  expect(await activityOf($)).toMatch(/factory.*\|Watch the log/)
 })
 
 test('a notification typed at the prompt removes nothing', async ($, on) => {
@@ -227,7 +227,7 @@ test('a notification typed at the prompt removes nothing', async ($, on) => {
   await startShell($)
   await notify($, envelope({ taskId: 'b1', status: 'completed' }), 'composer')
 
-  expect(await activityOf($)).toMatch(/hourglass.*\|Start dev server/)
+  expect(await activityOf($)).toMatch(/factory.*\|Start dev server/)
 })
 
 test("an envelope quoted in another notification's result removes nothing", async ($, on) => {
@@ -239,7 +239,7 @@ test("an envelope quoted in another notification's result removes nothing", asyn
   // Its own head names no task, as a relay's event does.
   await notify($, envelope({ status: 'completed', rest: `<result>${quoted}</result>` }))
 
-  expect(await activityOf($)).toMatch(/hourglass.*\|Start dev server/)
+  expect(await activityOf($)).toMatch(/factory.*\|Start dev server/)
 })
 
 // The call's result and classic.Stop give one task the same id.
@@ -252,7 +252,7 @@ test('a background shell keeps one row through the turn-end list and leaves on i
     stop_hook_active: false,
     background_tasks: [{ id: 'b1', type: 'shell', status: 'running', description: 'Start dev server' }],
   })
-  expect(await activityOf($)).toMatch(/hourglass.*\|Start dev server/)
+  expect(await activityOf($)).toMatch(/factory.*\|Start dev server/)
 
   await notify($, envelope({ taskId: 'b1', status: 'completed' }))
   expect(await activityOf($)).toMatch(/Idle/)
@@ -275,7 +275,7 @@ test('after a turn-end list, a shell, a monitor and a workflow each leave on the
   expect(await activityOf($)).toMatch(/2 running: 1 monitor, 1 workflow/)
 
   await notify($, envelope({ taskId: 'm1', status: 'completed' }))
-  expect(await activityOf($)).toMatch(/hourglass.*\|Workflow review-changes/)
+  expect(await activityOf($)).toMatch(/factory.*\|Workflow review-changes/)
 
   await notify($, envelope({ taskId: 'w1', status: 'completed' }))
   expect(await activityOf($)).toMatch(/Idle/)

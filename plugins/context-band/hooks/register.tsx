@@ -9,6 +9,7 @@ import type {
 } from 'claude-code'
 
 import type { ActivityItem, Billing, Limit, Meter, Track } from '../types'
+import { resetAwake } from './awake'
 import { breakdown, clipLabel, hookActivity, resetActivity, runningItems } from './activity'
 import { CRAB_HEIGHT, CRAB_WIDTH, crabAlt, crabSvg, moodOf } from './crab'
 import { hookPace, loadBaselines, resetPace, startPace } from './pace'
@@ -22,6 +23,8 @@ const activity = atom({ plugin: 'context-band', key: 'activity' } as const, {
 })
 // Written by ./pace.ts, which declares the same atom.
 const pace = atom({ plugin: 'context-band', key: 'pace' } as const, { level: 0, cooling: false })
+// Written by ./awake.ts, which declares the same atom.
+const awake = atom({ plugin: 'context-band', key: 'awake' } as const, false)
 // Whether the list of everything running is open under the band.
 const isListOpen = atom({ plugin: 'context-band', key: 'isListOpen' } as const, false)
 
@@ -300,6 +303,7 @@ export const register: Register = on => {
     const result = await next(e)
     await resetActivity($)
     await resetPace($)
+    await resetAwake($)
     await loadBaselines($)
     const usage = await $.session.usage()
     await detectBilling($, usage.cost?.usd ?? null)
@@ -355,7 +359,7 @@ export const register: Register = on => {
     const percent = m.percent ?? 0
     const filled = filledCells(percent)
     const color = level(percent)
-    const mood = moodOf(running, e.props.isWorking)
+    const mood = moodOf(running, e.props.isWorking, await read($, awake))
     const temper = await read($, pace)
     const isSeveral = running.length > 1
     const isOpen = isSeveral && (await read($, isListOpen))

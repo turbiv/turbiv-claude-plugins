@@ -24,8 +24,9 @@ export type ActivityItem = { id: string; kind: ActivityKind; label: string }
 
 export type Activity = { tools: ActivityItem[]; background: ActivityItem[] }
 
-// What the band's crab acts out.
-export type Mood = 'idle' | 'thinking' | 'working' | 'background' | 'several' | 'waiting'
+// What the band's crab acts out. `ready`: nothing runs, but a turn ended a
+// moment ago, so the crab stays awake while you type the next prompt.
+export type Mood = 'idle' | 'ready' | 'thinking' | 'working' | 'background' | 'several' | 'waiting'
 
 // How hard the session works, from calm (0) to meltdown (4): the output tokens
 // of the last minute against the usual rate for the model. `cooling`: the
@@ -46,6 +47,7 @@ declare module 'claude-code' {
       activity: Activity
       isListOpen: boolean
       pace: Pace
+      awake: boolean
     }
   }
 }

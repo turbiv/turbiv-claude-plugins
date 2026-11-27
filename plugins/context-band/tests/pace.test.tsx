@@ -120,7 +120,7 @@ test('what the store holds is read as data: only well-formed baselines stay', ()
 const count = (text: string, part: string): number => text.split(part).length - 1
 
 test('every mood at every level draws a balanced SVG', () => {
-  for (const mood of ['idle', 'thinking', 'working', 'background', 'several', 'waiting'] as const) {
+  for (const mood of ['idle', 'ready', 'thinking', 'working', 'background', 'several', 'waiting'] as const) {
     for (const level of [0, 1, 2, 3, 4] as const) {
       for (const cooling of [false, true]) {
         const svg = crabSvg(mood, 3, level, cooling)
@@ -212,6 +212,32 @@ test('asleep, the crab lies tucked in under drifting z\'s', () => {
   expect(idle).toContain('<rect x="4" y="5" width="12" height="4"')
   expect(idle).toContain('<rect x="5" y="10" width="1" height="1"')
   expect(crabSvg('working', 1)).toContain('<rect x="4" y="4" width="12" height="4"')
+})
+
+test('awake after a turn, the crab stands, waits on you restlessly, and speeds up with the pace', () => {
+  const ready = crabSvg('ready', 0)
+
+  expect(ready).toMatch(/class="ready"/)
+  expect(ready).not.toContain('class="zz"')
+  // Standing, not lying down.
+  expect(ready).toContain('<rect x="4" y="4" width="12" height="4"')
+  expect(ready).toContain('<rect x="7" y="5" width="1" height="2"')
+  // It looks about, beckons and taps its feet, even calm.
+  expect(ready).toContain('.ready .fol { animation: lookabout')
+  expect(ready).toContain('.ready .cl { animation: beckon')
+  expect(ready).toContain('--rb:3s;--la:5s;--bk:4s;--rt:1.2s')
+
+  // Faster with the pace: busy it sweats, from frenzy it hops, meltdown is fastest.
+  expect(crabSvg('ready', 0, 1)).toContain('--rb:1.6s;--la:3.5s;--bk:3s;--rt:0.8s')
+  expect(crabSvg('ready', 0, 1)).toContain('class="drip"')
+  expect(crabSvg('ready', 0, 3)).toMatch(/class="ready hp"/)
+  expect(crabSvg('ready', 0, 3)).toContain('class="shake on"')
+  expect(crabSvg('ready', 0, 4)).toContain('--rb:0.35s;--la:1.2s;--bk:0.8s;--rt:0.2s')
+  expect(crabSvg('ready', 0, 4)).toContain('class="wrap rb"')
+  expect(crabAlt('ready', 0, 2)).toMatch(/your turn \(pace: hyped\)/)
+
+  // It spends no tokens itself, so it does not pant as the pace falls back.
+  expect(crabSvg('ready', 0, 3, true)).toBe(crabSvg('ready', 0, 3, false))
 })
 
 test('thinking, the crab paces sideways with its thoughts; cooling, it stands', () => {

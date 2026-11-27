@@ -4,8 +4,9 @@ import type { ActivityItem, Level, Mood } from '../types'
 // out what the session is doing. The desktop and mobile apps run its CSS
 // animation; hovered, it waves.
 //
-// Each mood has its own act: asleep it lies tucked in; thinking it paces; at
-// work it hammers; with background work it cranks a little factory; with several
+// Each mood has its own act: asleep it lies tucked in; just after a turn it
+// stands awake and restless, looking about, tapping its feet and beckoning
+// you with a claw, still bouncing to the pace of the turn it just left; thinking it paces; at work it hammers; with background work it cranks a little factory; with several
 // things running it conducts them; waiting for you it looks through a
 // magnifying glass. Whatever it does, every few seconds its right claw snaps
 // shut twice.
@@ -46,9 +47,10 @@ const MONEY_SHADE = '#4E9A54'
 const LEVEL_NAMES = ['calm', 'busy', 'hyped', 'frenzy', 'meltdown'] as const
 
 // What the crab acts out: someone waiting on you first, then how much runs.
-export const moodOf = (items: ActivityItem[], isWorking: boolean): Mood => {
+// With nothing running it sleeps, unless a turn ended a moment ago (`isAwake`).
+export const moodOf = (items: ActivityItem[], isWorking: boolean, isAwake = false): Mood => {
   if (items.some(item => item.label === 'Waiting for your answer')) return 'waiting'
-  if (items.length === 0) return 'idle'
+  if (items.length === 0) return isAwake ? 'ready' : 'idle'
   if (items.length > 1) return 'several'
 
   const [only] = items
@@ -58,9 +60,10 @@ export const moodOf = (items: ActivityItem[], isWorking: boolean): Mood => {
   return only?.kind === 'tool' || isWorking ? 'working' : 'background'
 }
 
-// The pace shows on every mood but sleep: a crab that waits for your answer
-// right after a burst of work is still wound up. Only the moods that spend
-// tokens themselves pant when the pace falls back from a burst.
+// The pace shows on every mood but sleep: a crab that waits for your answer,
+// or for your next prompt, right after a burst of work is still wound up.
+// Only the moods that spend tokens themselves pant when the pace falls back
+// from a burst.
 const hasPace = (mood: Mood): boolean => mood !== 'idle'
 
 const canCool = (mood: Mood): boolean =>
@@ -409,6 +412,23 @@ const waitingExtras = (level: Level): string => {
   }
 }
 
+// Awake after a turn: nothing calm, a drop of sweat busy, steam hyped, sparks
+// from frenzy; the stylesheet does the rest, faster with the pace.
+const readyExtras = (level: Level): string => {
+  switch (level) {
+    case 0:
+      return ''
+    case 1:
+      return sweat(18.4, 'drip')
+    case 2:
+      return STEAM + sweat(18.4, 'drip')
+    case 3:
+      return spark(2, 7, 0) + spark(19.5, 8, 0.3) + sweat(18.4, 'drip') + sweat(3.4, 'drip2')
+    case 4:
+      return bang(11, 2.6) + spark(2, 7, 0) + spark(20, 9, 0.3)
+  }
+}
+
 const severalExtras = (count: number, level: Level): string => {
   switch (level) {
     case 0:
@@ -433,6 +453,8 @@ const extras = (mood: Mood, count: number, level: Level, cooling: boolean): stri
   switch (mood) {
     case 'idle':
       return ZZZ
+    case 'ready':
+      return readyExtras(level)
     case 'thinking':
       return thinkingExtras(level)
     case 'working':
@@ -460,10 +482,29 @@ g { transform-box: fill-box; transform-origin: center; }
 @keyframes hop { 0%, 50%, 100% { transform: translateY(0) } 25%, 75% { transform: translateY(-1.6px) } }
 @keyframes snap { 0%, 84%, 88%, 92%, 100% { transform: translateX(0) } 86%, 90% { transform: translateX(1px) } }
 
-.thinking .eyes, .working .eyes, .background .eyes, .waiting .eyes, .several .eyes {
+.ready .eyes, .thinking .eyes, .working .eyes, .background .eyes, .waiting .eyes, .several .eyes {
   animation: blink 4s infinite;
 }
 .pin { animation: snap 5s steps(1) infinite; }
+
+/* Awake after a turn, waiting on you: it bobs, taps its feet, looks left,
+   right and down at the prompt, and now and then beckons with its left claw,
+   all faster with the pace; from frenzy it hops. */
+@keyframes lookabout {
+  0%, 30% { transform: translate(0, 0) } 31%, 45% { transform: translate(-0.7px, 0) }
+  46%, 55% { transform: translate(0, 0) } 56%, 70% { transform: translate(0.7px, 0) }
+  71%, 90% { transform: translate(0, 0.6px) } 91%, 100% { transform: translate(0, 0) }
+}
+@keyframes beckon {
+  0%, 70%, 80%, 90%, 100% { transform: rotate(0) translateY(0) }
+  75%, 85% { transform: rotate(-28deg) translateY(-1px) }
+}
+.ready .crab { animation: bob var(--rb) ease-in-out infinite; }
+.ready .fol { animation: lookabout var(--la) steps(1) infinite; }
+.ready .cl { animation: beckon var(--bk) ease-in-out infinite; }
+.ready .legs-a { animation: lift var(--rt) steps(1) infinite; }
+.ready .legs-b { animation: lift var(--rt) steps(1) infinite calc(var(--rt) / 2); }
+svg.ready:hover .cl { animation: wavel 0.4s ease-in-out infinite; }
 
 /* Asleep: tucked in, breathing slowly, z's drifting up; now and then the
    right claw twitches, and its top jaw snaps. */
@@ -665,6 +706,13 @@ const WAVE = ['1s', '0.8s', '0.4s', '0.25s', '0.2s'] as const
 const FOOT = ['0.5s', '0.5s', '0.25s', '0.15s', '0.1s'] as const
 const HOP = ['0.5s', '0.5s', '0.5s', '0.3s', '0.2s'] as const
 
+// The ready crab, calm to meltdown: one bob, one look about, one beckon, one
+// tap of the feet.
+const READY_BOB = ['3s', '1.6s', '0.9s', '0.5s', '0.35s'] as const
+const LOOK_ABOUT = ['5s', '3.5s', '2.5s', '1.6s', '1.2s'] as const
+const BECKON = ['4s', '3s', '2s', '1.2s', '0.8s'] as const
+const READY_TAP = ['1.2s', '0.8s', '0.5s', '0.3s', '0.2s'] as const
+
 // The conductor's bar of four beats: how many things run sets it (2 s for two,
 // down to 0.9 s from six), and the pace speeds it up.
 const BAR = [2, 2, 2, 1.6, 1.3, 1.1, 0.9]
@@ -707,13 +755,15 @@ export const crabSvg = (mood: Mood, count: number, level: Level = 0, cooling = f
     mood === 'waiting' && lv >= 1 ? 'tf' : '',
     mood === 'waiting' && lv >= 2 ? 'hp' : '',
     mood === 'waiting' && lv >= 3 ? 'both' : '',
+    mood === 'ready' && lv >= 3 ? 'hp' : '',
   ]
     .filter(Boolean)
     .join(' ')
   const vars =
     `--d:${THOUGHT_BEAT[lv]};--wk:${WALK[lv]};--jb:${STRIKE[lv]};` +
     `--run:${CRANKING[lv]};--sm:${SMOKE[lv]};--mn:${MONEY_FLIGHT[lv]};--bar:${conductBar(count, lv)}s;` +
-    `--g:${LOOK[lv]};--q:${ASK[lv]};--w:${WAVE[lv]};--tf:${FOOT[lv]};--h:${HOP[lv]}`
+    `--g:${LOOK[lv]};--q:${ASK[lv]};--w:${WAVE[lv]};--tf:${FOOT[lv]};--h:${HOP[lv]};--rb:${READY_BOB[lv]};` +
+    `--la:${LOOK_ABOUT[lv]};--bk:${BECKON[lv]};--rt:${READY_TAP[lv]}`
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}" ` +
@@ -733,6 +783,8 @@ export const crabAlt = (mood: Mood, count: number, level: Level = 0, cooling = f
     switch (mood) {
       case 'idle':
         return 'A crab asleep, tucked in: nothing is running'
+      case 'ready':
+        return 'A crab awake, tapping its feet and beckoning: your turn'
       case 'thinking':
         return 'A crab pacing, claw on its chin: the model is working'
       case 'working':

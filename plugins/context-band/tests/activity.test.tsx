@@ -1,4 +1,6 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
+
+import { AWAKE_MS } from '../hooks/awake'
 
 const props = (isWorking: boolean) => ({
   hasSurvey: false,
@@ -10,7 +12,7 @@ const props = (isWorking: boolean) => ({
   view: {},
 })
 
-const start = async ($: any, on: any) => {
+const start = async ($: any, on: any, { clock = true } = {}) => {
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('session.authorize', () => ({ value: { handle: 'h', kind: 'bearer' } }))
   // A terminal surface alone, so the Spotify poll never starts.
@@ -22,7 +24,7 @@ const start = async ($: any, on: any) => {
       rateLimits: [],
     },
   }))
-  on('clock.now', () => ({ value: Date.now() }))
+  if (clock) on('clock.now', () => ({ value: Date.now() }))
   on('classic.Stop', () => ({}))
   on('prompt.submit', (_: unknown, e: { text: string }) => ({ text: e.text }))
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
@@ -90,6 +92,55 @@ test('nothing running reads Idle', async ($, on) => {
   await start($, on)
 
   expect(await activityOf($)).toMatch(/crab asleep.*\|Idle/)
+})
+
+const endTurn = ($: any, agentId?: string) =>
+  $.turn.complete({
+    answer: 'Done.',
+    durationMs: 1_000,
+    isAborted: false,
+    turnId: 't1',
+    reason: 'answer',
+    ...(agentId === undefined ? {} : { agentId }),
+  })
+
+test('after a turn the crab stays awake while you type, then falls asleep', async ($, on) => {
+  const clock = mock.clock(on, { now: 1_000_000 })
+  on('turn.complete', (_: unknown, e: { answer: string }) => ({ text: e.answer }))
+  await start($, on, { clock: false })
+
+  await endTurn($)
+  expect(await activityOf($)).toMatch(/crab awake, tapping its feet and beckoning.*\|Idle/)
+
+  await clock.advance(AWAKE_MS - 1_000)
+  expect(await activityOf($)).toMatch(/crab awake/)
+
+  await clock.advance(1_000)
+  expect(await activityOf($)).toMatch(/crab asleep/)
+})
+
+test('a second turn ending starts the wait over', async ($, on) => {
+  const clock = mock.clock(on, { now: 1_000_000 })
+  on('turn.complete', (_: unknown, e: { answer: string }) => ({ text: e.answer }))
+  await start($, on, { clock: false })
+
+  await endTurn($)
+  await clock.advance(AWAKE_MS / 2)
+  await endTurn($)
+  await clock.advance(AWAKE_MS / 2 + 1_000)
+  expect(await activityOf($)).toMatch(/crab awake/)
+
+  await clock.advance(AWAKE_MS / 2)
+  expect(await activityOf($)).toMatch(/crab asleep/)
+})
+
+test("a background subagent's turn ending does not wake the crab", async ($, on) => {
+  mock.clock(on, { now: 1_000_000 })
+  on('turn.complete', (_: unknown, e: { answer: string }) => ({ text: e.answer }))
+  await start($, on, { clock: false })
+
+  await endTurn($, 'a1')
+  expect(await activityOf($)).toMatch(/crab asleep/)
 })
 
 test('a running model turn with no tool reads Thinking', async ($, on) => {

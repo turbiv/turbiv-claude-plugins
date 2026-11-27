@@ -2,6 +2,7 @@ import { atom, update } from 'claude-code'
 import type { EngineInterface, On, ToolResultOf } from 'claude-code'
 
 import type { Activity, ActivityItem, ActivityKind } from '../types'
+import { wake } from './awake'
 
 // What the session has running: the main loop's tool calls in flight, and the
 // background work (shells, subagents, monitors, workflows) that outlives them.
@@ -316,6 +317,10 @@ export function hookActivity(on: On): void {
         : // A background subagent that ended its turn.
           { ...a, background: a.background.filter(b => b.id !== agentId) },
     )
+
+    // Your turn: the crab stays awake while you type. A background subagent's
+    // turn is not yours to answer.
+    if (agentId === undefined) await wake($)
 
     return next(e)
   })

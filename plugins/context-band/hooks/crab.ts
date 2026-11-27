@@ -115,10 +115,23 @@ const BATON =
 const CLAW_UP: Box[] = [[0, 0, 1, 2], [2, 0, 1, 2], [0, 2, 3, 1], [1, 3, 1, 2], [2, 4, 2, 1]]
 const CLAW_DOWN: Box[] = [[0, 8, 3, 1], [2, 9, 2, 1], [0, 10, 3, 1], [3, 8, 1, 1]]
 
+// Poked, the eyes go wide for a moment.
+const EYES_WIDE =
+  `<g class="pkeye">${rect(6.1, 4, 2.8, 3, PAPER)}${rect(7, 4.8, 1.1, 1.6, EYE)}` +
+  `${rect(11.1, 4, 2.8, 3, PAPER)}${rect(12, 4.8, 1.1, 1.6, EYE)}</g>`
+
+// Poked again and again, it glares, under a frown.
+const GLARE = `<g class="pkglare">${rect(6.5, 5.4, 2.1, 0.9, EYE)}${rect(11.4, 5.4, 2.1, 0.9, EYE)}</g>`
+const FROWN =
+  `<g class="pkbrow" shape-rendering="geometricPrecision">` +
+  `<line x1="6" y1="3.3" x2="9" y2="4.5" stroke="${EYE}" stroke-width="0.8" stroke-linecap="round"/>` +
+  `<line x1="14" y1="3.3" x2="11" y2="4.5" stroke="${EYE}" stroke-width="0.8" stroke-linecap="round"/></g>`
+
 // One crab, its parts in groups the stylesheet moves. The right claw's inner
 // pincer standing, or its top jaw lying down, is a group of its own so it can
-// snap.
-const crab = (coral: string, shade: string, eyes: string, { baton = false, tucked = false } = {}): string => {
+// snap. The crab you can poke (not its ghosts) has its face and claws in
+// groups of their own as well, so a poke moves them on top of what they do.
+const crab = (coral: string, shade: string, eyes: string, { baton = false, tucked = false, poke = false } = {}): string => {
   const left = tucked ? CLAW_DOWN : CLAW_UP
   const right = mirror(left)
   const pin = tucked ? 0 : 1
@@ -129,14 +142,17 @@ const crab = (coral: string, shade: string, eyes: string, { baton = false, tucke
   const body = rects([[5, 3 + sink, 10, 1], [4, 4 + sink, 12, 4], [5, 8 + sink, 10, 1]], coral)
   const legsA = rects([[5, 9 + sink, 1, leg], [12, 9 + sink, 1, leg]], shade)
   const legsB = rects([[7, 9 + sink, 1, leg], [14, 9 + sink, 1, leg]], shade)
-  const face = tucked ? `<g transform="translate(0 1)">${eyes}</g>` : eyes
+  const looks = poke ? `<g class="pkf"><g class="pke">${eyes}</g>${EYES_WIDE}${GLARE}${FROWN}</g>` : eyes
+  const face = tucked ? `<g transform="translate(0 1)">${looks}</g>` : looks
+  const claw = (cls: string, inner: string): string =>
+    poke ? `<g class="pk${cls[1]}"><g class="${cls}">${inner}</g></g>` : `<g class="${cls}">${inner}</g>`
 
   return [
     `<g class="legs-a">${legsA}</g>`,
     `<g class="legs-b">${legsB}</g>`,
     `<g class="body">${body}<g class="fol">${face}</g></g>`,
-    `<g class="cl">${rects(left, coral)}</g>`,
-    `<g class="cr">${rightClaw}${baton ? BATON : ''}</g>`,
+    claw('cl', rects(left, coral)),
+    claw('cr', `${rightClaw}${baton ? BATON : ''}`),
   ].join('')
 }
 
@@ -188,11 +204,11 @@ const badge = (count: number): string => {
   const text = count > 9 ? '9+' : String(count)
 
   return [
-    `<g class="badge" shape-rendering="geometricPrecision">`,
+    `<g class="pkb"><g class="badge" shape-rendering="geometricPrecision">`,
     `<circle cx="11" cy="4.4" r="3.4" fill="${PAPER}" stroke="${CORAL}" stroke-width="0.7"/>`,
     `<text x="11" y="${text.length > 1 ? 5.75 : 5.85}" text-anchor="middle" font-size="${text.length > 1 ? 3.2 : 4.2}" `,
     `font-weight="bold" font-family="-apple-system, system-ui, sans-serif" fill="${SHADE}">${text}</text>`,
-    `</g>`,
+    `</g></g>`,
   ].join('')
 }
 
@@ -207,7 +223,7 @@ const SIREN = [
 ].join('')
 
 const askMark = (text: string, x: number, y: number, size: number, color: string, cls: string): string =>
-  `<text class="${cls}" x="${x}" y="${y}" font-size="${size}" font-weight="bold" font-family="monospace" fill="${color}">${text}</text>`
+  `<g class="pkq"><text class="${cls}" x="${x}" y="${y}" font-size="${size}" font-weight="bold" font-family="monospace" fill="${color}">${text}</text></g>`
 
 // The background crab's factory, standing behind its right side: a chimney, a
 // gauge whose needle swings, a furnace window glowing. The crab cranks it.
@@ -216,7 +232,7 @@ const MACHINE = [
   `<rect x="15.6" y="6.6" width="7.6" height="9.4" rx="0.6" fill="#7D736B" stroke="${IRON}" stroke-width="0.4" shape-rendering="geometricPrecision"/>`,
   rect(21.4, 3.8, 1.3, 2.8, IRON),
   `<circle cx="21.4" cy="9.6" r="1.4" fill="${PAPER}" stroke="${IRON}" stroke-width="0.3" shape-rendering="geometricPrecision"/>`,
-  `<g class="ndl"><line x1="21.4" y1="9.6" x2="21.4" y2="8.5" stroke="${RED}" stroke-width="0.35" stroke-linecap="round" shape-rendering="geometricPrecision"/></g>`,
+  `<g class="pkn"><g class="ndl"><line x1="21.4" y1="9.6" x2="21.4" y2="8.5" stroke="${RED}" stroke-width="0.35" stroke-linecap="round" shape-rendering="geometricPrecision"/></g></g>`,
   rect(19.6, 12, 3.2, 3, '#3A2E28'),
   rect(19.9, 12.3, 2.6, 2.4, EMBER, 'glow'),
   `</g>`,
@@ -280,15 +296,17 @@ const coins = (n: number): string =>
 const CHIMNEY_FIRE = `<path class="cf" d="M21.2 3.8 L21.6 1.6 L22.05 3 L22.5 1.2 L22.9 3.8z" fill="${EMBER}"/>`
 
 const ZZZ = [
+  `<g class="pkz">`,
   `<text class="zz" x="14" y="9" font-size="3" font-weight="bold" font-family="monospace" fill="${INK}">z</text>`,
   `<text class="zz zz2" x="14" y="9" font-size="3.6" font-weight="bold" font-family="monospace" fill="${INK}">z</text>`,
   `<text class="zz zz3" x="14" y="9" font-size="2.6" font-weight="bold" font-family="monospace" fill="${INK}">Z</text>`,
+  `</g>`,
 ].join('')
 
 const thinkingDots = [
-  `<circle class="dot d1" cx="12.5" cy="6.6" r="0.8" fill="${INK}"/>`,
-  `<circle class="dot d2" cx="14.6" cy="4.8" r="0.9" fill="${INK}"/>`,
-  `<circle class="dot d3" cx="17" cy="2.6" r="1.1" fill="${INK}"/>`,
+  `<g class="pkd1"><circle class="dot d1" cx="12.5" cy="6.6" r="0.8" fill="${INK}"/></g>`,
+  `<g class="pkd2"><circle class="dot d2" cx="14.6" cy="4.8" r="0.9" fill="${INK}"/></g>`,
+  `<g class="pkd3"><circle class="dot d3" cx="17" cy="2.6" r="1.1" fill="${INK}"/></g>`,
 ].join('')
 
 // The hammer crab's work: a nail on a block beside it, the hammer in its claw
@@ -467,6 +485,206 @@ const extras = (mood: Mood, count: number, level: Level, cooling: boolean): stri
       return waitingExtras(level)
   }
 }
+
+// Poked (clicked), the crab flinches: it squashes, its eyes go wide and a `!`
+// pops up; then it does a moment of its own act and goes back to what it was
+// doing. Keep poking and it gets annoyed (from the third poke: frowning,
+// steaming, hotter), then angry (from the fifth: red, glaring, an anger mark
+// flashing, its claw snapping at you).
+//
+// The drawing runs no script, so the clicks are counted by focus. Over the
+// whole drawing lie POKES see-through layers that can take the focus, the
+// first on top. A click focuses the top one that takes clicks; the focused
+// one and those above it then let clicks through for POKE_GAP, so the next
+// click lands on the one beneath: which layer has the focus is how many
+// pokes came in a row. After POKE_GAP with no click the top layer takes
+// clicks again, and the count starts over. The last layer always takes them.
+//
+// A reaction plays when the focus comes into the drawing (`:focus-within`);
+// each press after that swaps it to a copy of the same keyframes under
+// another name (`:active`, then back on release), which plays it afresh.
+const POKES = 6
+const POKE_GAP = '2.5s'
+
+// What a poke adds to the drawing, over the scene, for each mood: the `!`,
+// the steam and the anger mark for every mood, and each mood's own props.
+const pokeExtras = (mood: Mood): string => {
+  const always =
+    `<text class="pkbang" x="18.6" y="6.4" font-size="5.5" font-weight="bold" font-family="-apple-system, system-ui, sans-serif" fill="${RED}">!</text>` +
+    `<circle class="pkst" cx="2.4" cy="6.5" r="1.1" fill="${STEEL}"/><circle class="pkst s2" cx="20" cy="6.5" r="1.1" fill="${STEEL}"/>` +
+    `<g class="pkvein">${rect(16.6, 0.4, 1.3, 0.55, RED)}${rect(16.6, 0.4, 0.55, 1.3, RED)}${rect(19, 0.4, 1.3, 0.55, RED)}` +
+    `${rect(19.75, 0.4, 0.55, 1.3, RED)}${rect(16.6, 3.1, 1.3, 0.55, RED)}${rect(16.6, 2.35, 0.55, 1.3, RED)}` +
+    `${rect(19, 3.1, 1.3, 0.55, RED)}${rect(19.75, 2.35, 0.55, 1.3, RED)}</g>`
+
+  switch (mood) {
+    case 'ready':
+    case 'waiting':
+      // An arrow down at the prompt: it is your turn.
+      return always +
+        `<path class="pkarrow" d="M-1.6 7.5 h1.6 v3.6 h1.5 l-2.3 3 l-2.3 -3 h1.5 z" fill="${CORAL}" stroke="${PAPER}" stroke-width="0.25"/>`
+    case 'working':
+      // A burst of sparks off the nail.
+      return always +
+        `<g class="pkburst">${rect(19.4, 9.4, 0.9, 0.9, GOLD)}${rect(22.4, 9.2, 0.8, 0.8, GOLD)}${rect(20.8, 7.8, 0.8, 0.8, EMBER)}` +
+        `${rect(23.4, 11, 0.7, 0.7, GOLD)}${rect(18.6, 11.2, 0.7, 0.7, EMBER)}${rect(21.8, 7, 0.6, 0.6, GOLD)}</g>`
+    case 'background':
+      // The needle slams into the red, the furnace flares, a big puff of smoke.
+      return always +
+        rect(19.9, 12.3, 2.6, 2.4, GOLD, 'pkglow') +
+        `<g class="pkslam"><line x1="21.4" y1="9.6" x2="21.4" y2="8.5" stroke="${RED}" stroke-width="0.35" stroke-linecap="round" shape-rendering="geometricPrecision"/></g>` +
+        `<circle class="pkpuff" cx="22" cy="3" r="1.6" fill="${INK}"/>`
+    default:
+      return always
+  }
+}
+
+// The layers that count the pokes, the last on top.
+const POKE_LAYERS = Array.from(
+  { length: POKES },
+  (_, i) =>
+    `<rect class="pc pc${POKES - i}" tabindex="0" x="${VIEW.x}" y="${VIEW.y}" width="${VIEW.w}" height="${VIEW.h}" fill="#000" fill-opacity="0"/>`,
+).join('')
+
+// The angry crab shakes: a jitter for the whole fit, then still.
+const RAGE_SHAKE = Array.from({ length: 22 }, (_, i) => {
+  const [x, y] = [[-0.5, 0.3], [0.5, -0.4], [-0.3, -0.3], [0.4, 0.3]][i % 4]!
+
+  return `${(i * 4).toFixed(0)}% { transform: translate(${x}px, ${y}px) }`
+}).join(' ')
+
+const POKE_FRAMES: Record<string, string> = {
+  flinch:
+    '0% { transform: none } 8% { transform: translateY(0.8px) scale(1.18, 0.72) } 20% { transform: translateY(-1.6px) scale(0.9, 1.14) } ' +
+    '32% { transform: translateY(0) scale(1.05, 0.96) } 44%, 100% { transform: none }',
+  showeye: '0%, 4% { opacity: 0 } 5%, 38% { opacity: 1 } 39%, 100% { opacity: 0 }',
+  hideeye: '0%, 4% { opacity: 1 } 5%, 38% { opacity: 0 } 39%, 100% { opacity: 1 }',
+  bangpop:
+    '0%, 4% { opacity: 0; transform: scale(0.3) } 10% { opacity: 1; transform: scale(1.4) translateY(-0.5px) } ' +
+    '16%, 40% { opacity: 1; transform: scale(1) } 50%, 100% { opacity: 0 }',
+  // Asleep: the z's pop like bubbles, it rubs an eye, it dozes off again.
+  zpop: '0% { opacity: 1; transform: scale(1) } 12% { opacity: 0.9; transform: scale(1.8) translateY(-1px) } 18%, 90% { opacity: 0; transform: scale(2) } 100% { opacity: 1; transform: none }',
+  rub:
+    '0%, 36% { transform: none } 44% { transform: translate(4.2px, -2.4px) } 52% { transform: translate(4.8px, -2.9px) } ' +
+    '60% { transform: translate(4.2px, -2.4px) } 68% { transform: translate(4.8px, -2.9px) } 80%, 100% { transform: none }',
+  // Awake and waiting on you: it looks down and points at the prompt.
+  arrow:
+    '0%, 25% { opacity: 0; transform: translateY(-2px) } 32% { opacity: 1; transform: translateY(0) } 45% { transform: translateY(1.2px) } ' +
+    '58% { transform: translateY(0) } 71% { transform: translateY(1.2px) } 84% { opacity: 1; transform: translateY(0) } 100% { opacity: 0 }',
+  pointdn:
+    '0%, 25% { transform: none } 32%, 45%, 58%, 71%, 84% { transform: translate(-0.6px, 2.2px) rotate(-38deg) } ' +
+    '38%, 51%, 64%, 77% { transform: translate(-0.6px, 1.4px) rotate(-30deg) } 100% { transform: none }',
+  lookdn: '0%, 25% { transform: none } 26%, 90% { transform: translate(-0.6px, 0.8px) } 91%, 100% { transform: none }',
+  hideq: '0%, 100% { opacity: 0 }',
+  // Thinking: the thought scatters, it shakes its head, the dots drift back.
+  scat1: '0%, 6% { transform: none; opacity: 1 } 22% { transform: translate(-4px, -2px); opacity: 0 } 70% { transform: translate(-1px, 0); opacity: 0 } 100% { transform: none; opacity: 1 }',
+  scat2: '0%, 6% { transform: none; opacity: 1 } 22% { transform: translate(2px, -4px); opacity: 0 } 75% { transform: translate(0.5px, -1px); opacity: 0 } 100% { transform: none; opacity: 1 }',
+  scat3: '0%, 6% { transform: none; opacity: 1 } 22% { transform: translate(5px, 1px); opacity: 0 } 80% { transform: translate(1px, 0); opacity: 0 } 100% { transform: none; opacity: 1 }',
+  nope: '0%, 38% { transform: none } 44%, 56%, 68% { transform: translateX(-0.8px) } 50%, 62%, 74% { transform: translateX(0.8px) } 80%, 100% { transform: none }',
+  // At work: a burst of sparks off the nail.
+  burst: '0%, 6% { opacity: 0; transform: scale(0.3) } 12% { opacity: 1; transform: scale(1.1) } 40% { opacity: 0; transform: scale(1.9) } 100% { opacity: 0 }',
+  // The factory: the needle slams into the red, the furnace flares, a big puff.
+  slam:
+    '0% { opacity: 1; transform: rotate(-60deg) } 12% { transform: rotate(88deg) } 18% { transform: rotate(76deg) } 24% { transform: rotate(86deg) } ' +
+    '30% { transform: rotate(78deg) } 36% { transform: rotate(86deg) } 70% { opacity: 1; transform: rotate(80deg) } 71%, 100% { opacity: 0 }',
+  hidendl: '0%, 70% { opacity: 0 } 71%, 100% { opacity: 1 }',
+  flare: '0%, 6% { opacity: 0 } 12%, 50% { opacity: 0.9 } 75%, 100% { opacity: 0 }',
+  bigpuff: '0%, 10% { opacity: 0; transform: scale(0.3) } 22% { opacity: 0.95; transform: scale(1.2) translate(-0.5px, -1.5px) } 70% { opacity: 0; transform: scale(2.4) translate(-1px, -2.5px) } 100% { opacity: 0 }',
+  // Conducting: it flicks the baton too hard, fumbles it, catches it.
+  fumble:
+    '0% { transform: none } 12% { transform: translate(0.6px, -2px) rotate(-45deg) } 28% { transform: translate(0.2px, 3.4px) rotate(70deg) } ' +
+    '38% { transform: translate(-0.4px, 2.4px) rotate(20deg) } 48% { transform: translate(0.4px, 3px) rotate(45deg) } 62%, 100% { transform: none }',
+  bump: '0%, 4% { transform: none } 12% { transform: scale(1.45) translateY(-0.6px) } 24%, 100% { transform: none }',
+  // Annoyed: a frown, steam, a hotter coat.
+  frown: '0%, 90% { opacity: 1 } 100% { opacity: 0 }',
+  fume: '0% { opacity: 0.95; transform: translateY(0) scale(0.6) } 100% { opacity: 0; transform: translateY(-4px) scale(1.5) }',
+  annoy: '0%, 85% { filter: hue-rotate(-10deg) saturate(1.5) } 100% { filter: none }',
+  // Angry: red and shaking, a glare, the anger mark flashing, the claw
+  // snapping at you.
+  rage: `${RAGE_SHAKE} 0%, 85% { filter: hue-rotate(-22deg) saturate(2.2) brightness(0.95) } 88% { transform: none } 100% { transform: none; filter: none }`,
+  gone: '0%, 90% { opacity: 0 } 100% { opacity: 1 }',
+  vein: '0%, 49% { opacity: 1 } 50%, 100% { opacity: 0 }',
+  jab: '0%, 100% { transform: none } 50% { transform: translate(1.6px, -1px) scale(1.35) }',
+}
+
+// How long a poke's reaction lasts, and an annoyed or angry fit.
+const POKE_TIME = '1.5s'
+const FIT_TIME = '2.6s'
+
+// Which pokes in a row each stage is: 1 and 2 a poke, 3 and 4 annoyed, 5 on
+// angry.
+const STAGES = { poke: ':focus-within', annoyed: ':has(.pc3:focus, .pc4:focus)', angry: ':has(.pc5:focus, .pc6:focus)' }
+
+// The rule pair that plays `frames` on `part` at a stage of poking: by one
+// name, and by its copy's while a press is down, so each press plays it
+// afresh.
+const onPoke = (stage: keyof typeof STAGES, part: string, frames: string, timing: string, mood = ''): string => {
+  const svg = `svg${mood === '' ? '' : `.${mood}`}${STAGES[stage]}`
+  const time = stage === 'poke' ? POKE_TIME : FIT_TIME
+
+  return (
+    `${svg} ${part} { animation: ${frames} ${time} ${timing}; }\n` +
+    `${svg}:active ${part} { animation: ${frames}2 ${time} ${timing}; }`
+  )
+}
+
+const POKE_STYLE = [
+  Object.entries(POKE_FRAMES)
+    .map(([name, frames]) => `@keyframes ${name} { ${frames} }\n@keyframes ${name}2 { ${frames} }`)
+    .join('\n'),
+  // The counting layers: a focused one and those above it let clicks through
+  // until POKE_GAP has passed, the last one never.
+  '.pc { outline: none; }',
+  ...Array.from({ length: POKES - 1 }, (_, i) => {
+    const n = i + 1
+
+    return `@keyframes pass${n} { 0%, 99% { pointer-events: none } 100% { pointer-events: all } }\n` +
+      `.pc${n}:focus, .pc${n}:focus ~ .pc { animation: pass${n} ${POKE_GAP} steps(1) forwards; }`
+  }),
+  '.pk { transform-origin: 50% 100%; }',
+  '.pkeye, .pkbrow, .pkglare, .pkbang, .pkarrow, .pkburst, .pkglow, .pkslam, .pkpuff, .pkst, .pkvein { opacity: 0; }',
+  '.pkbang, .pkarrow, .pkburst, .pkpuff, .pkst { transform-box: fill-box; transform-origin: center; }',
+  '.pkslam { transform-box: view-box; transform-origin: 21.4px 9.6px; }',
+  onPoke('poke', '.pk', 'flinch', 'ease-out'),
+  onPoke('poke', '.pkeye', 'showeye', 'steps(1)'),
+  onPoke('poke', '.pke', 'hideeye', 'steps(1)'),
+  onPoke('poke', '.pkbang', 'bangpop', 'ease-out'),
+  onPoke('poke', '.pkz', 'zpop', 'ease-out'),
+  onPoke('poke', '.pkl', 'rub', 'ease-in-out', 'idle'),
+  onPoke('poke', '.pkarrow', 'arrow', 'ease-in-out'),
+  onPoke('poke', '.pkl', 'pointdn', 'ease-in-out', 'ready'),
+  onPoke('poke', '.pkl', 'pointdn', 'ease-in-out', 'waiting'),
+  onPoke('poke', '.pkf', 'lookdn', 'steps(1)', 'ready'),
+  onPoke('poke', '.pkf', 'lookdn', 'steps(1)', 'waiting'),
+  onPoke('poke', '.pkq', 'hideq', 'linear', 'waiting'),
+  onPoke('poke', '.pkd1', 'scat1', 'ease-out'),
+  onPoke('poke', '.pkd2', 'scat2', 'ease-out'),
+  onPoke('poke', '.pkd3', 'scat3', 'ease-out'),
+  onPoke('poke', '.pkf', 'nope', 'steps(1)', 'thinking'),
+  onPoke('poke', '.pkburst', 'burst', 'ease-out'),
+  onPoke('poke', '.pkslam', 'slam', 'ease-out'),
+  onPoke('poke', '.pkn', 'hidendl', 'steps(1)'),
+  onPoke('poke', '.pkglow', 'flare', 'ease-out'),
+  onPoke('poke', '.pkpuff', 'bigpuff', 'ease-out'),
+  onPoke('poke', '.pkr', 'fumble', 'ease-in-out', 'several'),
+  onPoke('poke', '.pkb', 'bump', 'ease-out'),
+  onPoke('annoyed', '.pkbrow', 'frown', 'steps(1)'),
+  onPoke('annoyed', '.pkst', 'fume', 'ease-out'),
+  onPoke('annoyed', '.pka', 'annoy', 'steps(1)'),
+  onPoke('angry', '.pkbrow', 'frown', 'steps(1)'),
+  onPoke('angry', '.pkglare', 'frown', 'steps(1)'),
+  onPoke('angry', '.pke', 'gone', 'steps(1)'),
+  onPoke('angry', '.pkeye', 'hideq', 'steps(1)'),
+  onPoke('angry', '.pkst', 'fume', 'ease-out'),
+  onPoke('angry', '.pka', 'rage', 'steps(1)'),
+  onPoke('angry', '.pkvein', 'vein', 'steps(1)'),
+  onPoke('angry', '.pkr', 'jab', 'ease-in-out'),
+  // The steam puffs, the flashing mark and the jabbing claw go on through the
+  // fit: each puff 0.6 s, a flash 0.25 s, a jab 0.22 s.
+  'svg:has(.pc3:focus, .pc4:focus, .pc5:focus, .pc6:focus) .pkst { animation-duration: 0.6s; animation-iteration-count: 4; }',
+  'svg:has(.pc3:focus, .pc4:focus, .pc5:focus, .pc6:focus) .pkst.s2 { animation-delay: 0.3s; }',
+  'svg:has(.pc5:focus, .pc6:focus) .pkvein { animation-duration: 0.25s; animation-iteration-count: 10; }',
+  'svg:has(.pc5:focus, .pc6:focus) .pkr { animation-duration: 0.22s; animation-iteration-count: 11; }',
+].join('\n')
 
 const STYLE = `
 g { transform-box: fill-box; transform-origin: center; }
@@ -684,6 +902,7 @@ svg:hover .cr, svg.tap:hover .cr { animation: wave 0.4s ease-in-out infinite; }
   * { animation: none !important; }
   .zz2, .zz3, .smk, .bill, .coin { display: none; }
 }
+${POKE_STYLE}
 `
 
 // How fast the thought dots pulse.
@@ -730,7 +949,7 @@ export const crabSvg = (mood: Mood, count: number, level: Level = 0, cooling = f
   const look = { baton: mood === 'several', tucked: mood === 'idle' }
   // Thinking, the crab paces sideways, its thoughts going with it.
   const walking = mood === 'thinking' && !cool
-  const parts = crab(coral, shade, eyesOf(mood, lv, cool), look)
+  const parts = crab(coral, shade, eyesOf(mood, lv, cool), { ...look, poke: true })
   // The factory stands behind the crab.
   const behind = mood === 'background' ? MACHINE : ''
   const ghosts =
@@ -772,9 +991,10 @@ export const crabSvg = (mood: Mood, count: number, level: Level = 0, cooling = f
     `<g class="wrap${lv === 4 && !cool ? ' rb' : ''}">` +
     behind +
     ghosts +
-    `<g transform="translate(1 5)"><g class="crab">${parts}</g></g></g>` +
+    `<g transform="translate(1 5)"><g class="pka"><g class="pk"><g class="crab">${parts}</g></g></g></g></g>` +
     extras(mood, count, lv, cool) +
-    `${walking ? '</g>' : ''}</g></svg>`
+    pokeExtras(mood) +
+    `${walking ? '</g>' : ''}</g>${POKE_LAYERS}</svg>`
   )
 }
 

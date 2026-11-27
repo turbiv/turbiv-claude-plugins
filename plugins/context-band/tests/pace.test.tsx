@@ -157,6 +157,42 @@ test('the calm crab is the crab it was, and levels show on every mood but sleep'
   expect(crabSvg('working', 1, 4, true)).toMatch(/class="cool"/)
 })
 
+test('every crab can be poked: a poke, then annoyed from the third, angry from the fifth', () => {
+  for (const mood of ['idle', 'ready', 'thinking', 'working', 'background', 'several', 'waiting'] as const) {
+    for (const level of [0, 4] as const) {
+      const svg = crabSvg(mood, 3, level)
+
+      // Six layers count the pokes, the first on top, last in the drawing.
+      expect(count(svg, 'tabindex="0"')).toBe(6)
+      expect(svg).toMatch(/<rect class="pc pc1" tabindex="0"[^>]*\/><\/svg>$/)
+      expect(svg).toContain('.pc1:focus, .pc1:focus ~ .pc { animation: pass1 2.5s steps(1) forwards; }')
+      expect(svg).not.toContain('.pc6:focus, .pc6:focus ~ .pc')
+      // Each press plays the reaction afresh.
+      expect(svg).toContain('svg:focus-within .pk { animation: flinch ')
+      expect(svg).toContain('svg:focus-within:active .pk { animation: flinch2 ')
+      expect(svg).toContain('svg:has(.pc3:focus, .pc4:focus) .pka { animation: annoy ')
+      expect(svg).toContain('svg:has(.pc5:focus, .pc6:focus) .pka { animation: rage ')
+      expect(svg).toContain('class="pkbang"')
+      expect(svg).toContain('class="pkvein"')
+      // The SVG stays within what the band may draw.
+      expect(svg.length).toBeLessThan(131_072)
+    }
+  }
+
+  // Only the crab itself goes wide-eyed, not its ghosts at meltdown.
+  expect(count(crabSvg('working', 1, 4), 'class="pkeye"')).toBe(1)
+  // The moods' own acts: z's popping, the arrow to the prompt, scattered
+  // thoughts, sparks, the needle slamming, the baton fumbled.
+  expect(crabSvg('idle', 1)).toContain('class="pkz"')
+  expect(crabSvg('ready', 1)).toContain('class="pkarrow"')
+  expect(crabSvg('waiting', 1, 2)).toContain('class="pkarrow"')
+  expect(crabSvg('thinking', 1)).toContain('class="pkd3"')
+  expect(crabSvg('working', 1)).toContain('class="pkburst"')
+  expect(crabSvg('background', 1)).toContain('class="pkslam"')
+  expect(crabSvg('several', 3)).toContain('svg.several:focus-within .pkr { animation: fumble ')
+  expect(crabSvg('thinking', 1)).not.toContain('class="pkarrow"')
+})
+
 test('the background crab cranks a factory that shows money from hyped and burns it from frenzy', () => {
   for (const level of [0, 1, 2, 3, 4] as const) {
     expect(crabSvg('background', 1, level)).toContain('class="mach"')

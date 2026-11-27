@@ -11,8 +11,8 @@ With the count opened, the band lists each thing that runs:
 It shows:
 
 - **What the session is running**, first, so you can tell a working session from an idle one. A small pixel crab acts it out (desktop and mobile; hover it and it waves; every few seconds it snaps its right claw; click it to poke it: it flinches, eyes wide under a `!`, and does a moment of its own act — the z's pop and it rubs an eye, it points down at the prompt when it waits on you, its thoughts scatter, sparks fly off the nail, the factory's needle slams into the red, the baton is fumbled; keep poking and from the third poke in a row it frowns and steams, from the fifth it turns red, glares and snaps its claw at you; after a few seconds without a poke it forgets):
-  - a turn just ended: for a minute the crab stays awake and waits on you, restless: it looks left, right and down at the prompt, taps its feet and beckons with its left claw, all to the pace of that turn (hopping from frenzy) as it winds down, `Idle`;
-  - nothing, for a minute or more: the crab sleeps tucked in, claws on the ground, breathing slowly under drifting z's, `Idle`;
+  - a turn just ended: for five minutes the crab stays awake and waits on you, restless: it looks left, right and down at the prompt, taps its feet and beckons with its left claw, all to the pace of that turn (hopping from frenzy) as it winds down, `Idle`;
+  - nothing, for five minutes or more: the crab sleeps tucked in, claws on the ground, breathing slowly under drifting z's, `Idle`;
   - the model thinking: it paces sideways back and forth, claw on its chin, thought dots going with it;
   - one tool: it hammers a nail on a block beside it, sparks flying on each strike;
   - only background work left: it cranks a little factory, its gauge swinging, the furnace glowing, a puff of smoke now and then;

@@ -8,7 +8,7 @@ import type { EngineInterface, Timer } from 'claude-code'
 // Written here, read by ./register.tsx, which declares the same atom.
 const awake = atom({ plugin: 'context-band', key: 'awake' } as const, false)
 
-export const AWAKE_MS = 60_000
+export const AWAKE_MS = 5 * 60_000
 
 let sleepTimer: Timer | undefined
 
